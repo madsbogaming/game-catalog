@@ -1,0 +1,2149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#141518">
+<title>Game Catalog</title>
+<!-- Dark like Discord everywhere, also in a phone's browser (set before anything is drawn, so no white flash);
+     ?theme=light at the end of the address gives the light version -->
+<script>document.documentElement.dataset.theme = new URLSearchParams(location.search).get("theme") === "light" ? "light" : "dark";</script>
+<style>
+:root { --bg:#f5f4f0; --card:#fff; --ink:#1c1c1f; --muted:#6a6a72; --line:#e2e0da; --accent:#5865f2; --chip:#ecebf8; --bar:rgba(245,244,240,.92);
+  --thumb:#cbc8bf; --glow:rgba(88,101,242,.18); --neon:#3b44c4; --neon-glow:0 0 6px rgba(88,101,242,.35); --rev-pos:#1a7fc1; --rev-mixed:#8c6d2c; --rev-neg:#b2481c;
+  --tick:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 6.5l2.5 2.5L10 3.5' fill='none' stroke='%231c1c1f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg:#141518; --card:#1f2125; --ink:#ececef; --muted:#9a9ba3; --line:#2d2f35; --accent:#8d96ff; --chip:#292c44; --bar:rgba(20,21,24,.92);
+    --thumb:#3a3d45; --glow:rgba(88,101,242,.32); --neon:#f3f0ff; --neon-glow:0 0 5px #8d96ff, 0 0 14px #5865f2, 0 0 28px #5865f2; --rev-pos:#66c0f4; --rev-mixed:#b9a074; --rev-neg:#d0683a;
+    --tick:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 6.5l2.5 2.5L10 3.5' fill='none' stroke='%23ececef' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+}
+:root[data-theme="dark"] { --bg:#141518; --card:#1f2125; --ink:#ececef; --muted:#9a9ba3; --line:#2d2f35; --accent:#8d96ff; --chip:#292c44; --bar:rgba(20,21,24,.92);
+  --thumb:#3a3d45; --glow:rgba(88,101,242,.32); --neon:#f3f0ff; --neon-glow:0 0 5px #8d96ff, 0 0 14px #5865f2, 0 0 28px #5865f2; --rev-pos:#66c0f4; --rev-mixed:#b9a074; --rev-neg:#d0683a;
+    --tick:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 6.5l2.5 2.5L10 3.5' fill='none' stroke='%23ececef' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+/* Title font, served by the bot (Activities can't load fonts from other sites) */
+@font-face { font-family:"Lilita One"; font-display:swap; src:url("/static/fonts/lilita-one-latin.woff2") format("woff2");
+  unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212, U+FEFF, U+FFFD; }
+@font-face { font-family:"Lilita One"; font-display:swap; src:url("/static/fonts/lilita-one-latin-ext.woff2") format("woff2");
+  unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1E00-1E9F, U+20A0-20AB, U+20AD-20C4, U+A720-A7FF; }
+* { box-sizing: border-box; }
+/* Focus rings in the page's purple (Discord's default ring is yellow) */
+:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+input:focus, select:focus { outline:none; border-color:var(--accent); }
+/* Dropdown menus: rounded and themed like the genres & tags menu (Chromium's stylable select) */
+select, ::picker(select) { appearance:base-select; }
+select { cursor:pointer; }
+select::picker-icon { content:"▾"; color:var(--muted); font-size:13px; }
+::picker(select) { margin-top:6px; padding:6px; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--ink);
+  box-shadow:0 8px 24px rgba(0,0,0,.3); }
+option { padding:6px 10px; border-radius:6px; cursor:pointer; }
+option:hover, option:focus-visible { background:var(--chip); outline:none; }
+option:checked { color:var(--accent); font-weight:600; }
+option::checkmark { display:none; }
+/* Sizes follow the window (Discord windows come in every size and get resized): text, spacing and the
+   number of card columns grow on big windows and shrink on small ones */
+body { margin:0; background:var(--bg); color:var(--ink);
+  font:clamp(14px, .35vw + 11px, 17px)/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+.wrap { max-width:1680px; margin:0 auto; padding-left:clamp(12px, 2vw, 32px); padding-right:clamp(12px, 2vw, 32px); }
+header { padding-top:clamp(14px, 4vh, 40px); padding-bottom:4px; text-align:center; position:relative; isolation:isolate; }
+header::before { content:""; position:absolute; z-index:-1; left:50%; top:0; width:min(640px, 100%); height:200px; transform:translateX(-50%);
+  background:radial-gradient(ellipse at center, var(--glow), transparent 70%); pointer-events:none; }
+/* Server badge under the title */
+.server { display:inline-flex; align-items:center; gap:8px; margin-top:clamp(6px, 1.5vh, 14px); padding:4px 14px 4px 4px; border-radius:999px;
+  background:var(--card); border:1px solid var(--line); font-size:14px; font-weight:600; }
+.server-icon { width:26px; height:26px; border-radius:50%; object-fit:cover; display:grid; place-items:center;
+  background:var(--accent); color:#fff; font-size:12px; font-weight:700; }
+/* Scoreboard: played together, want to play together, most wanted game, top scout */
+.stats { display:grid; grid-template-columns:auto auto minmax(0, 1.4fr) minmax(0, 1fr);  /* number cards as wide as their one-line labels */
+  gap:10px; max-width:1300px; margin:clamp(8px, 2.2vh, 22px) auto 0; text-align:left; }
+.score { min-width:0; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:2px; padding:12px 16px;
+  border-radius:12px; background:none; border:1px solid transparent; font:inherit; color:var(--ink); text-align:center; }
+.score .num { display:flex; align-items:center; gap:8px; font-family:"Lilita One", system-ui, sans-serif; font-size:clamp(22px, min(1.6vw + 8px, 5vh), 40px); line-height:1.05; }
+/* The two numbers glow like neon signs and flicker now and then, each at its own moment */
+.score .num.neon { color:var(--neon); text-shadow:var(--neon-glow); animation:flicker 5s infinite; }
+.score + .score .num.neon { animation-delay:2.3s; }
+@keyframes flicker { 0%, 90%, 100% { opacity:1; } 91% { opacity:.4; } 92% { opacity:1; } 94% { opacity:.6; } 95% { opacity:1; } }
+@media (prefers-reduced-motion: reduce) { .score .num.neon { animation:none; } }
+.score .lbl { font-size:12px; color:var(--muted); white-space:nowrap; }
+/* Most wanted: a small poster of the game's cover, darkened at both ends so the text and count read */
+.score.top { position:relative; isolation:isolate; overflow:hidden; flex-direction:row; justify-content:flex-start; align-items:center; gap:14px;
+  min-height:84px; padding:12px 16px; background:#0e0f12 var(--cover, none) center/cover no-repeat padding-box; color:#fff; cursor:pointer; text-align:left; }
+.score.top::before { content:""; position:absolute; inset:0; z-index:-1;
+  background:linear-gradient(90deg, rgba(10,10,14,.94) 0%, rgba(10,10,14,.6) 50%, rgba(10,10,14,.45) 68%, rgba(10,10,14,.88) 100%); }
+.score.top:hover { border-color:var(--accent); }
+.score.top .lbl { color:#c9cbd3; }
+.top-text { min-width:0; flex:1; display:flex; flex-direction:column; gap:3px; }
+.top-count { flex:none; display:flex; flex-direction:column; align-items:center; padding:0 6px; }
+.score .top-count .num { font-size:clamp(24px, min(1.7vw + 8px, 5.5vh), 42px); line-height:1; }
+.score.top .num.neon { animation-delay:.8s; }
+.top-title { font-family:"Lilita One", system-ui, sans-serif; font-size:21px; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.top-text .av { width:22px; height:22px; font-size:10px; box-shadow:0 0 0 2px rgba(0,0,0,.6); }
+.top-text .more { color:#c9cbd3; }
+.top-text .stack { flex-wrap:nowrap; }
+/* Top scouts podium: most games added in the middle and raised, 2nd on the left, 3rd on the right */
+.score.scout { align-items:center; gap:6px; padding:8px 12px 10px; }
+.scout-head { font-size:13px; font-weight:650; }
+.podiums { display:grid; grid-template-columns:minmax(0, 1fr) auto minmax(0, 1fr); align-items:end; gap:18px; width:100%; }
+.podium.p2 { justify-self:end; } .podium.p3 { justify-self:start; }
+.podium { display:flex; flex-direction:column; align-items:center; gap:3px; min-width:0; }
+.podium-name { max-width:90px; font-size:11px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.podium .lbl { font-size:11px; }
+.podium .av { box-shadow:0 0 0 2px var(--ring); }
+.podium.p1 { --ring:#c9a227; } .podium.p2 { --ring:#9aa3ad; } .podium.p3 { --ring:#a86a3d; }
+.podium.p1 .av { width:44px; height:44px; font-size:16px; }
+.podium.p2 .av { width:32px; height:32px; }
+.podium.p3 .av { width:28px; height:28px; }
+.score .podium .num { line-height:1; }
+.score .podium.p1 .num { font-size:24px; animation-delay:3.7s; }
+.score .podium.p2 .num { font-size:18px; animation-delay:1.4s; }
+.score .podium.p3 .num { font-size:16px; animation-delay:4.4s; }
+@media (max-width:900px) { .stats { grid-template-columns:1fr 1fr; } .score .lbl { white-space:normal; } }
+@media (max-width:600px) { .score.top, .score.scout { grid-column:1 / -1; } .top-text .stack { flex-wrap:wrap; } }
+h1 { margin:0; font-family:"Lilita One", system-ui, sans-serif; font-weight:400; font-size:clamp(24px, min(2.2vw + 14px, 6.5vh), 52px); line-height:1.15; letter-spacing:.01em; }
+/* "next" in the title is swapped for games from the catalog, one after another */
+.rot-line { display:block; color:var(--accent); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#rot { display:inline-block; cursor:pointer; }
+#mini-rot { display:inline-block; }
+#rot.swap, #mini-rot.swap { animation:rot-in .35s ease-out; }
+@keyframes rot-in { from { opacity:0; transform:translateY(40%); } to { opacity:1; transform:none; } }
+.rot-q { animation:blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity:0; } }
+@media (prefers-reduced-motion: reduce) { #rot.swap, #mini-rot.swap, .rot-q { animation:none; } }
+.sub { color:var(--muted); margin-top:4px; }
+.bar { position:sticky; top:0; z-index:5; background:var(--bar); backdrop-filter:blur(8px); border-bottom:1px solid var(--line); margin-top:12px; }
+.controls { display:flex; flex-wrap:wrap; gap:8px; padding-top:12px; padding-bottom:12px; align-items:center; }
+.controls input, .controls select { font:inherit; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--ink); }
+.controls input[type=search] { flex:1 1 220px; min-width:0; }
+/* Command bar: search, sort, tags and status in one rounded bar */
+.cmd { flex:1 1 420px; min-width:0; display:flex;  /* drops below the view tools when the window is narrow */
+  flex-wrap:wrap; align-items:center; gap:6px; padding:5px 5px 5px 14px;
+  border:1px solid var(--line); border-radius:24px; background:var(--card); transition:border-color .15s, box-shadow .15s; }
+.cmd:focus-within { border-color:var(--accent); box-shadow:0 0 0 3px rgba(88,101,242,.18); }
+.cmd-search { flex:1 1 260px; min-width:0; display:flex; align-items:center; gap:8px; cursor:text; }
+.cmd-search .i { width:20px; height:20px; }
+.cmd-ask { font-family:"Lilita One", system-ui, sans-serif; font-size:16px; color:var(--ink); white-space:nowrap; }
+.controls .cmd input#q { flex:1; min-width:0; border:0; background:none; padding:6px 0; }
+.cmd-count { font-size:12px; color:var(--muted); white-space:nowrap; }
+.cmd-kbd { font:inherit; font-size:11px; color:var(--muted); border:1px solid var(--line); border-radius:4px; padding:0 6px; margin-right:6px; }
+.cmd-pills { display:flex; flex-wrap:wrap; gap:6px; }
+.pill { display:inline-flex; align-items:center; gap:2px; padding-left:10px; border:1px solid var(--line); border-radius:999px;
+  background:var(--bg); }
+.pill:hover, .pill:focus-within { border-color:var(--accent); }
+.pill .i { width:15px; height:15px; }
+.pill[hidden] { display:none; }
+/* Person filter (from a profile's catalog buttons), with an × to show everyone's games again */
+.person-pill { gap:4px; padding-right:4px; border-color:var(--accent); background:var(--chip); }
+.person-name { padding:7px 2px; white-space:nowrap; }
+#person-clear { display:grid; place-items:center; width:26px; height:26px; padding:0; border:0; border-radius:50%; background:none;
+  color:var(--muted); cursor:pointer; }
+#person-clear:hover { color:var(--ink); background:var(--line); }
+.controls .pill select { border:0; background:none; padding:7px 12px 7px 4px; border-radius:999px; }
+.controls .pill select:focus { border:0; }
+.pill .multi > summary { border:0; background:none; padding:7px 28px 7px 4px; }
+@media (max-width:600px) { .cmd { border-radius:16px; padding-left:12px; } .cmd-kbd { display:none; } .cmd-pills { width:100%; } .pill { font-size:13px; } }
+/* Undo / redo, like a browser's back and forward */
+.hist { display:flex; gap:4px; }
+.hist[hidden] { display:none; }
+.hist button { width:38px; height:38px; display:grid; place-items:center; padding:0; font:inherit; border:1px solid var(--line);
+  border-radius:8px; background:var(--card); color:var(--ink); cursor:pointer; }
+.hist button:hover:not(:disabled) { border-color:var(--accent); }
+.hist button:disabled { opacity:.4; cursor:default; }
+.hist .i { width:18px; height:18px; }
+/* View tools left of the search bar: undo / redo and cards per row */
+.view-tools { display:flex; gap:4px; }
+/* Browser only: sign in with Discord to mark games, or sign out */
+.signin { display:inline-flex; align-items:center; gap:6px; height:38px; padding:0 14px; border-radius:999px; background:#5865f2;
+  color:#fff; font-size:14px; font-weight:600; text-decoration:none; white-space:nowrap; }
+.signin:hover { background:#4752c4; }
+.signin[hidden] { display:none; }
+.signin.out { background:none; border:1px solid var(--line); color:var(--muted); font-weight:500; }
+.signin.out:hover { border-color:var(--accent); color:var(--ink); }
+.signin .i { width:16px; height:16px; color:inherit; }
+/* Cards per row: just the grid icon; the menu opens over the whole button */
+.cols-pick { position:relative; width:38px; height:38px; display:inline-grid; place-items:center; border:1px solid var(--line);
+  border-radius:8px; background:var(--card); }
+.cols-pick:hover, .cols-pick:focus-within { border-color:var(--accent); }
+.cols-pick .i { width:18px; height:18px; pointer-events:none; }
+.controls .cols-pick select { position:absolute; inset:0; width:100%; height:100%; padding:0; border:0; background:none;
+  color:transparent; font-size:0; cursor:pointer; }
+.cols-pick select::picker-icon { display:none; }
+.cols-pick select::picker(select) { font-size:14px; color:var(--ink); }
+.controls label { display:flex; gap:6px; align-items:center; color:var(--muted); }
+/* Card size follows the window's width AND height (whichever is smaller), so short windows get smaller cards too */
+/* "Cards per row" (--cols) caps the columns; a small window still gets fewer, since a card never gets narrower
+   than its size from the window */
+main { --cols:99; --gap:clamp(10px, 1.2vw, 16px); display:grid; gap:var(--gap);
+  grid-template-columns:repeat(auto-fill, minmax(max(clamp(190px, min(11vw + 90px, 18vh + 80px), 300px),
+    calc((100% - (var(--cols) - 1) * var(--gap)) / var(--cols))), 1fr)); padding-top:16px; padding-bottom:48px; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; display:flex; flex-direction:column;
+  container-type:inline-size; }
+.card .img { aspect-ratio:460/215; background:var(--line) center/cover no-repeat; display:block; position:relative; }
+.badge { position:absolute; top:10px; right:10px; padding:3px 10px; border-radius:999px; font-size:12px; font-weight:700;
+  letter-spacing:.04em; text-transform:uppercase; color:#fff; box-shadow:0 2px 8px rgba(0,0,0,.35); }
+.badge.playing { background:#4752c4; }
+.badge.played { background:#23a55a; }
+.badge.demo { background:#1f9e9e; }
+.badge.upcoming { left:10px; right:auto; background:#5865f2; }
+.clips { display:flex; gap:4px; }
+.clip { display:inline-grid; place-items:center; width:28px; height:28px; border-radius:8px; background:var(--chip); color:var(--accent); }
+.clip:hover { background:var(--accent); color:#fff; }
+.clip .i { width:16px; height:16px; color:inherit; }
+/* Status badge with the refund count joined on ("PLAYED | ↩ 1"); hovering spells out "refunded" and lists who */
+.badge-split { position:absolute; top:10px; right:10px; display:inline-flex; border-radius:999px; overflow:hidden;
+  box-shadow:0 2px 8px rgba(0,0,0,.35); }
+.badge-split .badge { position:static; border-radius:0; box-shadow:none; }
+.badge.refund { display:inline-flex; align-items:center; gap:4px; padding-left:8px; background:#4e5058; color:#e3e5e8; cursor:default; }
+.badge.refund .i { width:13px; height:13px; }
+.rf-word { display:inline-block; max-width:0; overflow:hidden; white-space:nowrap; transition:max-width .15s; }
+.badge.refund:hover, .badge.refund.open { background:#5d6069; }
+.badge.refund:hover .rf-word, .badge.refund.open .rf-word { max-width:90px; }
+.rt-head .i.rf { color:#b5bac1; fill:none; }
+.rt-hint { margin-top:8px; font-size:12px; color:#80848e; }
+.meta .soon { color:var(--accent); font-weight:600; }
+.status-pick { align-self:flex-start; font:inherit; font-size:12px; padding:3px 6px; border:1px solid var(--line); border-radius:6px;
+  background:var(--card); color:var(--ink); cursor:pointer; }
+.status-pick:disabled { opacity:.6; cursor:wait; }
+#toast { position:fixed; left:50%; bottom:20px; transform:translate(-50%, 20px); z-index:30; background:#111214; color:#f2f3f5;
+  padding:10px 16px; border-radius:8px; font-size:14px; box-shadow:0 8px 24px rgba(0,0,0,.4); opacity:0; pointer-events:none;
+  transition:opacity .15s, transform .15s; max-width:calc(100% - 32px); }
+#toast.show { opacity:1; transform:translate(-50%, 0); }
+.body { padding:12px 14px; display:flex; flex-direction:column; gap:6px; flex:1; }
+.title { font-weight:650; font-size:clamp(15px, .3vw + 12px, 18px); color:inherit; text-decoration:none; }
+.title:hover { color:var(--accent); }
+.meta { color:var(--muted); font-size:13px; display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; }
+/* Review summaries in Steam's colours: blue positive, tan mixed, orange-red negative */
+.rev { font-weight:600; }
+.rev.pos { color:var(--rev-pos); }
+.rev.mixed { color:var(--rev-mixed); }
+.rev.neg { color:var(--rev-neg); }
+/* Icons (Tabler Icons, MIT licence), tinted blurple; white on filled buttons */
+.i { width:1.15em; height:1.15em; vertical-align:-.22em; flex:none; fill:none; stroke:currentColor; stroke-width:2;
+  stroke-linecap:round; stroke-linejoin:round; color:var(--accent); }
+.want.on .i, .play.on .i, .pf-btn .i, .chip.demo .i, .chip.sale .i, .badge .i, .ping-yes .i { color:inherit; }
+.meta > span, .want, .play, .pf-btn, .chip.demo, .chip.sale, .ping { display:inline-flex; align-items:center; gap:5px; }
+.pf-btn { justify-content:center; }
+/* A Steam sale, coloured like Steam's own */
+.meta > .sale { display:inline-flex; align-items:stretch; gap:0; border-radius:4px; overflow:hidden; font-weight:700; line-height:1.15; }
+.sale-pct { display:flex; align-items:center; padding:2px 7px; background:#4c6b22; color:#beee11; font-size:14px; }
+.sale-prices { display:flex; align-items:baseline; gap:6px; padding:2px 7px; background:#344654; }
+.sale-prices s { font-size:11px; font-weight:400; color:#738895; }
+.sale-prices span { font-size:14px; color:#beee11; }
+/* Same type as the percentage, so all three parts are the same height; the badge's own slate background,
+   with the clock and time going grey -> amber (the rating stars' colour) -> red as the end gets closer */
+.sale-end { display:flex; align-items:center; gap:4px; padding:2px 7px; font-size:14px; background:#344654; color:var(--ends); }
+.sale-end .i { width:1em; height:1em; vertical-align:0; stroke-width:2.4; }
+.price { font-size:16px; font-weight:750; color:var(--ink); text-decoration:underline 2px var(--accent); text-underline-offset:4px; }
+/* One line of tags; the ones that don't fit are behind "+N" (worked out per card in the script) */
+.chips { display:flex; gap:4px; overflow:hidden; }
+.chip { flex:none; white-space:nowrap; background:var(--chip); border:0; border-radius:999px; padding:2px 9px; font:inherit; font-size:12px; color:inherit; cursor:pointer; }
+.chip-more { font-weight:650; }
+.chip:hover { outline:1px solid var(--accent); }
+/* Genres & tags menu: tick as many as you like */
+.multi { position:relative; }
+.multi > summary { list-style:none; padding:8px 30px 8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--card);
+  color:var(--ink); cursor:pointer; white-space:nowrap; max-width:240px; overflow:hidden; text-overflow:ellipsis; position:relative; }
+.multi > summary::-webkit-details-marker { display:none; }
+.multi > summary::after { content:"▾"; position:absolute; right:10px; color:var(--muted); font-size:13px; }
+.multi.on > summary { border-color:var(--accent); color:var(--accent); font-weight:600; }
+.multi-panel { position:fixed; z-index:10; width:min(300px, calc(100vw - 32px)); padding:8px;
+  background:var(--card); border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.3);
+  display:flex; flex-direction:column; gap:6px; }
+.multi-head { display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--muted); padding:0 4px; }
+.multi-head button { font:inherit; font-size:12px; border:0; background:none; color:var(--accent); cursor:pointer; padding:0; }
+.multi-panel input[type=search] { width:100%; flex:none; }
+.multi-list { max-height:min(360px, 55vh); overflow-y:auto; display:flex; flex-direction:column; }
+.multi-list label { display:flex; gap:8px; align-items:center; padding:5px 6px; border-radius:6px; cursor:pointer; color:var(--ink); }
+.multi-list label[hidden] { display:none; }
+.multi-list label:hover { background:var(--chip); }
+.multi-list input, .ping-row input { appearance:none; width:16px; height:16px; margin:0; padding:0; flex:none; cursor:pointer;
+  border:1px solid var(--muted); border-radius:4px; background:var(--bg) center/12px no-repeat; }
+.multi-list input:checked, .ping-row input:checked { border-color:var(--ink); background-image:var(--tick); }
+.multi-list .n { margin-left:auto; color:var(--muted); font-size:12px; }
+.chip.demo { background:#1f9e9e; color:#fff; font-weight:650; }
+.chip.bnet { background:#148eff; color:#fff; font-weight:650; }
+.chip.sale { background:#4c6b22; color:#beee11; font-weight:650; }
+.chip.sale .i { width:16px; height:16px; stroke-width:2.4; }
+.note { font-style:italic; font-size:13px; }
+.note .emoji { width:20px; height:20px; vertical-align:-5px; object-fit:contain; }
+.foot { margin-top:auto; padding-top:8px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; display:flex; flex-direction:column; gap:6px; }
+.foot a { color:var(--accent); }
+.av { width:26px; height:26px; border-radius:50%; object-fit:cover; background:var(--chip); flex:none; cursor:pointer;
+  display:inline-grid; place-items:center; font-size:12px; font-weight:650; color:var(--ink); box-shadow:0 0 0 2px var(--card); transition:transform .12s; }
+.av:hover { transform:translateY(-2px); position:relative; z-index:1; }
+.stack { display:flex; flex-wrap:wrap; align-items:center; gap:4px; min-width:0; }
+/* Who added it, plays it, played it, refunded it, wants it: small pills side by side, faces overlapping */
+.people { display:flex; flex-wrap:wrap; gap:6px; }
+.pp { display:inline-flex; align-items:center; height:30px; padding:0 2px 0 9px; border-radius:15px; white-space:nowrap;
+  background:color-mix(in srgb, var(--chip) 55%, transparent); }
+.pp-l { margin-right:6px; cursor:default; }
+.pp:not(:has(.av, .pp-name, .pp-more)) { padding-right:9px; }
+.pp-l:last-child { margin-right:0; }
+.pp .av + .av { margin-left:-6px; }
+.pp-name { margin-right:7px; color:var(--ink); }
+.pp-old { display:inline-flex; margin-right:5px; color:var(--muted); cursor:default; }
+.pp-old .i { width:14px; height:14px; }
+.pp-more { font:inherit; font-weight:650; color:var(--ink); background:none; border:0; padding:0 7px 0 5px; height:100%; cursor:pointer;
+  border-radius:0 15px 15px 0; }
+.pp-more:hover, .pp-more.open, .chip-more.open { color:var(--accent); }
+.fit-probe { visibility:hidden; position:relative; z-index:-1; }
+.more { font-size:12px; color:var(--muted); margin-left:6px; }
+.want { align-self:flex-start; font:inherit; font-size:12px; white-space:nowrap; padding:3px 10px; border-radius:999px; cursor:pointer;
+  border:1px solid var(--line); background:transparent; color:var(--ink); }
+.want:hover { border-color:var(--accent); }
+.want.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+.want:disabled { opacity:.6; cursor:wait; }
+/* Card actions: "Want to play" full width, then Playing / Ping / Status as three equal buttons */
+.actions { display:flex; flex-direction:column; gap:6px; }
+.card-tools { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:6px; }
+.actions > .want, .card-tools > .play, .card-tools > .ping, .card-tools > .status-pick {
+  height:30px; padding:0 8px; border-radius:8px; justify-content:center; align-self:stretch; min-width:0; overflow:hidden;
+  white-space:nowrap; text-overflow:ellipsis; }
+.card-tools > .status-pick { display:flex; align-items:center; justify-content:space-between; }
+.status-pick > button { all:unset; display:flex; align-items:center; flex:1; min-width:0; }
+.status-pick selectedcontent { display:flex; align-items:center; gap:4px; min-width:0; overflow:hidden; }
+.status-pick option { display:flex; align-items:center; gap:6px; }
+.st-label, .st-unset { min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.st-full { display:contents; }
+.status-pick option .st-unset, .status-pick selectedcontent .st-full { display:none; }
+/* The menu's two parts: "For everyone" (the game's status) and "Just for you" (refunds) */
+.status-pick legend { display:flex; align-items:center; gap:6px; padding:6px 10px 4px; font-size:11px; font-weight:600; color:var(--muted); }
+.status-pick legend .i { width:14px; height:14px; }
+.st-hint { margin-left:auto; padding-left:12px; font-weight:400; opacity:.75; }
+.status-pick option::checkmark { display:block; order:1; margin-left:auto; padding-left:12px; content:"✓"; }
+.card-tools > .ping.on { border-color:var(--accent); background:var(--chip); }
+.ping-pick { grid-column:1 / -1; }
+.ping { font:inherit; font-size:12px; line-height:1.25; text-align:left; padding:3px 10px; border-radius:6px; cursor:pointer;
+  border:1px solid var(--line); background:transparent; color:var(--ink); }
+.ping:hover { border-color:var(--accent); }
+.ping:disabled { opacity:.6; cursor:wait; }
+.ping-pick { flex-basis:100%; min-width:0; max-width:100%; display:flex; flex-direction:column; gap:8px; padding:10px; border-radius:8px; background:var(--chip); font-size:12px; }
+.ping-list { display:flex; flex-direction:column; gap:2px; max-height:190px; overflow-y:auto; }
+.ping-list::-webkit-scrollbar { width:8px; }
+.ping-list::-webkit-scrollbar-thumb { background:var(--thumb); border-radius:999px; }
+.ping-row { min-width:0; display:flex; align-items:center; gap:8px; padding:4px 6px; border-radius:6px; cursor:pointer; color:var(--ink); }
+.ping-row:hover { background:var(--card); }
+.ping-row img, .ping-av { width:22px; height:22px; border-radius:50%; object-fit:cover; flex:none; display:grid; place-items:center;
+  background:var(--line); font-size:11px; font-weight:700; }
+.ping-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ping-note { color:var(--muted); font-size:11px; }
+.ping-empty { color:var(--muted); font-size:11px; padding:2px 6px; }
+.ping-search { font:inherit; font-size:12px; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--ink); }
+.ping-results { display:flex; flex-direction:column; gap:2px; }
+.ping-results:empty { display:none; }
+.ping-result { display:flex; align-items:center; gap:8px; padding:4px 6px; border:0; border-radius:6px; background:none; color:var(--ink);
+  font:inherit; font-size:12px; text-align:left; cursor:pointer; min-width:0; }
+.ping-result:hover { background:var(--card); }
+.ping-result img, .ping-result .ping-av { width:22px; height:22px; border-radius:50%; object-fit:cover; flex:none; display:grid;
+  place-items:center; background:var(--line); font-size:11px; font-weight:700; }
+.ping-actions { display:flex; gap:6px; justify-content:flex-end; }
+.ping-yes { background:#5865f2; border-color:#5865f2; color:#fff; }
+.play { font:inherit; font-size:12px; white-space:nowrap; padding:3px 10px; border-radius:999px; cursor:pointer;
+  border:1px solid var(--line); background:transparent; color:var(--ink); }
+.play:hover { border-color:var(--accent); }
+.play.on { background:#4752c4; border-color:#4752c4; color:#fff; }
+.play:disabled { opacity:.6; cursor:wait; }
+/* Discord-style profile card shown when hovering an avatar */
+#profile { position:fixed; z-index:20; width:320px; background:#111214 padding-box; color:#f2f3f5; overflow:hidden;
+  border:10px solid transparent; border-radius:20px; filter:drop-shadow(0 8px 24px rgba(0,0,0,.45));
+  opacity:0; pointer-events:none; transform:translateY(4px); }
+#profile.show { opacity:1; pointer-events:auto; transform:none; transition:opacity .12s, transform .12s; }
+.pf-banner { height:72px; background:var(--accent) center/cover no-repeat; }
+.pf-avatar { width:80px; height:80px; border-radius:50%; border:6px solid #111214; margin:-46px 0 0 12px; display:block; object-fit:cover; background:#2b2d31; }
+.pf-body { padding:4px 16px 16px; display:flex; flex-direction:column; gap:12px; }
+.pf-name { font-size:20px; font-weight:700; line-height:1.2; }
+.pf-user { font-size:14px; color:#b5bac1; }
+.pf-box { background:#232428; border-radius:8px; padding:10px 12px; display:flex; flex-direction:column; gap:10px; font-size:13px; }
+.pf-h { font-size:12px; font-weight:700; color:#b5bac1; margin-bottom:4px; }
+.pf-actions { display:flex; flex-direction:column; gap:8px; }
+.pf-btn { display:block; width:100%; font:inherit; font-size:14px; font-weight:600; text-align:center; text-decoration:none; cursor:pointer;
+  padding:8px 12px; border:0; border-radius:8px; background:#2b2d31; color:#f2f3f5; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pf-btn:hover { background:#35373c; }
+.pf-btn.tag { background:#5865f2; }
+.pf-btn.tag:hover { background:#4752c4; }
+.pf-btn:disabled { opacity:.6; cursor:default; }
+/* "Added" and "Wants to play" numbers: buttons that filter the catalog to this person; what each means shows on hover */
+.pf-filters { display:flex; gap:8px; }
+.pf-filter { position:relative; display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 12px; border:0; border-radius:999px;
+  background:#2b2d31; color:#f2f3f5; font:inherit; font-size:14px; font-weight:600; cursor:pointer; }
+.pf-filter:hover { background:#35373c; }
+.pf-filter.on { background:#5865f2; }
+.pf-filter .i { width:17px; height:17px; }
+.pf-tip { position:absolute; left:0; bottom:calc(100% + 6px); white-space:nowrap; background:#000; color:#fff; font-size:12px; font-weight:400;
+  padding:4px 8px; border-radius:6px; opacity:0; pointer-events:none; transition:opacity .1s; }
+.pf-filter:hover .pf-tip, .pf-filter:focus-visible .pf-tip { opacity:1; }
+.pf-games { display:flex; flex-direction:column; gap:6px; margin-top:8px; }
+.pf-game { display:flex; align-items:center; gap:8px; width:100%; padding:4px; border:0; border-radius:6px; background:#2b2d31;
+  font:inherit; font-size:13px; color:#f2f3f5; text-align:left; cursor:pointer; }
+.pf-game:hover { background:#35373c; }
+.pf-thumb { flex:none; width:64px; aspect-ratio:460/215; border-radius:4px; background:#1e1f22 center/cover no-repeat; }
+.pf-gtitle { flex:1; min-width:0; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pf-gn { flex:none; display:inline-flex; align-items:center; gap:4px; color:#b5bac1; font-size:12px; padding-right:4px; }
+.pf-gn .i { width:14px; height:14px; }
+.pf-sub { margin:10px 0 6px; font-size:11px; font-weight:600; color:#80848e; }
+.pf-sub + .pf-games { margin-top:0; }
+.pf-hn { float:right; font-weight:400; color:#80848e; }
+/* Scores given: five small bars, 1 to 5 stars */
+.pf-hist { position:relative; display:flex; align-items:flex-end; gap:6px; height:38px; }
+.pf-col { padding:0; border:0; background:none; font:inherit; color:inherit; cursor:pointer; }
+.pf-col:disabled { cursor:default; }
+.pf-col:not(:disabled):hover .pf-bar, .pf-col:focus-visible .pf-bar { background:#f7c95c; }
+.pf-col.on .pf-bar { background:#f7c95c; box-shadow:0 0 0 2px #232428, 0 0 0 3px #f0b232; }
+.pf-col { flex:1; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:2px; }
+.pf-bar { width:100%; min-height:2px; border-radius:3px 3px 0 0; background:#f0b232; }
+.pf-lab { display:flex; align-items:center; gap:1px; font-size:10px; line-height:1; color:#80848e; }
+.pf-lab .i { width:9px; height:9px; color:inherit; fill:currentColor; }  /* grey like the number, not the icon purple */
+/* Achievements: earned badges only, ring in the tier's colour; the Biggest refunder title red with a crown */
+.pf-ach { display:flex; flex-wrap:wrap; align-items:center; gap:14px 12px; padding-top:6px; }
+.pf-badge.extra, .pf-ach.all .pf-more { display:none; }
+.pf-ach.all .pf-badge.extra { display:grid; }
+.pf-badge { position:relative; flex:none; display:grid; place-items:center; width:32px; height:32px; border-radius:50%;
+  background:#2b2d31; border:2px solid var(--t); color:var(--t); }
+.pf-badge .i { width:16px; height:16px; color:inherit; }  /* the icon takes its ring's colour, like the badge pictures */
+.pf-badge.holder { background:#3b1f22; }  /* not "title": that's the cards' game titles, which turn purple on hover */
+.pf-crown { position:absolute; top:-11px; left:50%; transform:translateX(-50%); line-height:0; }
+.pf-crown .i { width:12px; height:12px; color:#f0b232; fill:#f0b232; }
+.pf-count { position:absolute; right:-6px; bottom:-5px; min-width:16px; height:16px; padding:0 3px; box-sizing:border-box;
+  border:2px solid #232428; border-radius:8px; background:#80848e; color:#111214; font-size:10px; font-weight:700;
+  line-height:12px; text-align:center; }  /* how many secret achievements the "?" stands for */
+.pf-more { flex:none; width:32px; height:32px; padding:0; border:2px solid #4e5058; border-radius:50%; background:#2b2d31;
+  font:inherit; font-size:12px; font-weight:600; color:#b5bac1; cursor:pointer; }  /* badge-sized, in the fifth spot */
+.pf-more:hover { background:#35373c; color:#f2f3f5; }
+/* Hover labels start at the left edge of their row (each badge is 32px + a 12px gap) and wrap within the card,
+   so one on a badge further right never runs off the edge */
+.pf-badge .pf-tip, .pf-col .pf-tip { z-index:2; width:max-content; max-width:264px; white-space:normal; }
+.pf-badge .pf-tip { left:calc(var(--i) * -44px - 2px); }
+.pf-badge:hover .pf-tip, .pf-badge:focus-visible .pf-tip, .pf-col:hover .pf-tip { opacity:1; }
+.pf-confirm { display:flex; flex-direction:column; gap:8px; background:#232428; border-radius:8px; padding:10px 12px; font-size:13px; }
+.pf-confirm .pf-row { display:flex; gap:8px; }
+.empty { grid-column:1/-1; text-align:center; color:var(--muted); padding:48px 0; }
+.section { grid-column:1/-1; margin:16px 0 0; font-size:18px; display:flex; align-items:center; gap:8px; }
+.section:first-child { margin-top:0; }
+.section span { font-size:13px; font-weight:600; color:var(--muted); background:var(--chip); border-radius:999px; padding:1px 9px; }
+/* "Playing now" feed */
+#now { padding-top:18px; }
+.now-row { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
+.now-head { display:flex; align-items:center; gap:8px; font-size:16px; font-weight:700; }
+.now-nav { display:flex; gap:6px; }
+.now-nav[hidden] { display:none; }
+.now-nav button { width:30px; height:30px; display:grid; place-items:center; padding:0; cursor:pointer; color:inherit;
+  background:var(--chip); border:1px solid var(--line); border-radius:50%; transition:background .12s, opacity .12s; }
+.now-nav button:hover:not(:disabled) { background:#23a55a; border-color:#23a55a; color:#fff; }
+.now-nav button:disabled { opacity:.35; cursor:default; }
+.now-head::before { content:""; width:8px; height:8px; border-radius:50%; background:#23a55a; animation:pulse 1.8s infinite; }
+@keyframes pulse { 0% { box-shadow:0 0 0 0 rgba(35,165,90,.6); } 70% { box-shadow:0 0 0 8px rgba(35,165,90,0); } 100% { box-shadow:0 0 0 0 rgba(35,165,90,0); } }
+.now-track { display:flex; gap:14px; overflow-x:auto; scrollbar-width:thin; scrollbar-color:var(--thumb) transparent; scroll-snap-type:x proximity;
+  padding:16px 18px 26px; margin:-16px -18px -16px; scroll-padding:0 18px; }  /* room for the glow */
+.now-track::-webkit-scrollbar { height:8px; }
+.now-track::-webkit-scrollbar-track { background:transparent; margin:0 18px; }
+.now-track::-webkit-scrollbar-thumb { background:var(--thumb); border-radius:999px; }
+.now-track::-webkit-scrollbar-thumb:hover { background:#23a55a; }
+.now-item { flex:0 0 250px; scroll-snap-align:start; display:flex; flex-direction:column; padding:0; overflow:hidden; cursor:pointer;
+  text-align:left; font:inherit; color:inherit; background:var(--card); border:1px solid rgba(35,165,90,.55); border-radius:12px;
+  box-shadow:0 6px 20px rgba(35,165,90,.16); transition:transform .12s, border-color .12s; }
+.now-item:hover { border-color:#23a55a; transform:translateY(-2px); }
+.now-img { display:block; position:relative; aspect-ratio:460/215; background:var(--line) center/cover no-repeat; }
+.now-img::after { content:""; position:absolute; inset:auto 0 0; height:60%; background:linear-gradient(transparent, rgba(0,0,0,.7)); }
+.now-people { position:absolute; left:8px; bottom:8px; z-index:1; display:flex; align-items:center; gap:4px; }
+.now-people .av { width:26px; height:26px; font-size:11px; box-shadow:0 0 0 2px rgba(0,0,0,.55); }
+.now-people .more { color:#fff; margin-left:2px; }
+.now-body { padding:9px 12px 11px; display:flex; flex-direction:column; gap:4px; }
+.now-title { font-weight:700; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.now-count { display:flex; align-items:center; gap:6px; font-size:12px; font-weight:650; color:#23a55a; }
+.now-count i { width:7px; height:7px; border-radius:50%; background:#23a55a; animation:pulse 1.8s infinite; }
+.card.flash { outline:2px solid var(--accent); outline-offset:2px; }
+/* Slim scrollbar in the page's colours */
+/* The scrollbar's room is kept even before the page is long enough to scroll, so cards don't get narrower once
+   the games are in (the cards work out how many faces and tags fit from their width) */
+html { scrollbar-gutter:stable; }
+html::-webkit-scrollbar, .multi-list::-webkit-scrollbar, .cu-list::-webkit-scrollbar { width:10px; }
+html::-webkit-scrollbar-track { background:var(--bg); }
+html::-webkit-scrollbar-thumb { background:var(--thumb); border-radius:999px; border:2px solid var(--bg); }
+html::-webkit-scrollbar-thumb:hover, .multi-list::-webkit-scrollbar-thumb:hover, .cu-list::-webkit-scrollbar-thumb:hover { background:var(--accent); }
+.multi-list::-webkit-scrollbar-track, .cu-list::-webkit-scrollbar-track { background:var(--card); }
+.multi-list::-webkit-scrollbar-thumb, .cu-list::-webkit-scrollbar-thumb { background:var(--thumb); border-radius:999px; border:2px solid var(--card); }
+@supports not selector(::-webkit-scrollbar) {
+  html { scrollbar-width:thin; scrollbar-color:var(--thumb) var(--bg); }
+  .multi-list, .cu-list { scrollbar-width:thin; scrollbar-color:var(--thumb) var(--card); }
+}
+/* Compact poster when the Activity is minimised or very small: the page's own title, with the same rotating
+   game names, over the blurred covers. Sized by the window's smaller side, since a minimised window is tiny. */
+#mini { display:none; position:fixed; inset:0; z-index:40; background:#141518 url("/static/art/background.jpg") center/cover no-repeat;
+  flex-direction:column; align-items:center; justify-content:center; gap:3vmin; padding:0 6vmin 6vmin; text-align:center; color:#fff; }
+.mini-title { margin:0; max-width:100%; font-family:"Lilita One", system-ui, sans-serif; font-weight:400; font-size:clamp(18px, 12vmin, 64px);
+  line-height:1.1; letter-spacing:.01em; text-shadow:0 2px 12px rgba(0,0,0,.8); }
+.mini-title .rot-line { color:#f3f0ff; text-shadow:0 0 5px #8d96ff, 0 0 14px #5865f2, 0 0 28px #5865f2; }
+.mini-server { padding:.3em 1em; border-radius:999px; background:#5865f2; font-size:clamp(11px, 4.2vmin, 20px); font-weight:600;
+  max-width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#mini-playing { position:absolute; left:0; right:0; bottom:0; padding:24px 12px 10px; text-align:center; font-weight:650; font-size:14px; color:#fff;
+  background:linear-gradient(transparent, rgba(0,0,0,.85)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#mini-playing:empty { display:none; }
+body.mini header, body.mini #now, body.mini .bar, body.mini main { display:none; }
+body.mini #mini { display:flex; }
+@media (max-height: 300px) {
+  header, #now, .bar, main { display:none; }
+  #mini { display:flex; }
+}
+/* Short windows (a small Discord window, or one shared with a call): a compact header so the games show sooner */
+@media (max-height:720px) and (pointer:fine), (pointer:coarse) {
+  header { padding-top:10px; }
+  .score { padding-top:6px; padding-bottom:6px; }
+  #now { padding-top:8px; }
+  .now-row { margin-bottom:6px; }
+  .now-head { font-size:14px; }
+  .now-item { flex-basis:190px; }
+  .now-body { padding:6px 10px 8px; gap:2px; }
+  .now-title { font-size:13px; }
+  .score.top { min-height:64px; padding-top:8px; padding-bottom:8px; }
+  .bar { margin-top:6px; }
+}
+@media (max-height:520px) and (pointer:fine) { .stats { display:none; } }
+/* Phones and tablets: the window's height changes while you scroll or type (Discord's bars, the keyboard), and
+   iPhones don't keep your place when the page above you changes size, so the page jumped. Nothing here follows
+   the height: they always get the compact header above, and sizes follow the width only. */
+@media (pointer:coarse) {
+  .server { margin-top:8px; }
+  .stats { margin-top:12px; }
+  h1 { font-size:clamp(24px, 2.2vw + 14px, 52px); }
+  .score .num { font-size:clamp(22px, 1.6vw + 8px, 40px); }
+  .score .top-count .num { font-size:clamp(24px, 1.7vw + 8px, 42px); }
+  main { grid-template-columns:repeat(auto-fill, minmax(max(clamp(190px, 11vw + 90px, 300px),
+    calc((100% - (var(--cols) - 1) * var(--gap)) / var(--cols))), 1fr)); }
+}
+/* Narrow cards (smaller windows): tighter, so a card shows its game at a glance */
+@container (max-width:250px) {
+  .body { padding:9px 10px; gap:5px; }
+  .title { font-size:14px; }
+  .meta { font-size:12px; gap:3px 8px; }
+  .meta > .sale { font-size:12px; }
+  .sale-left { display:none; }  /* just the clock and its colour; the time is in its tooltip */
+  .chip { font-size:11px; padding:1px 7px; }
+  .pp { height:26px; padding-left:7px; }
+  .pp-more { padding:0 6px 0 4px; }
+  .note { font-size:12px; }
+  .foot { font-size:11px; gap:4px; }
+  .foot .av { width:22px; height:22px; font-size:10px; }
+  .badge, .badge-split { top:6px; right:6px; padding:2px 7px; font-size:10px; }
+  .badge-split { padding:0; }
+  .badge.upcoming { left:6px; }
+  .rating-pill { left:6px; bottom:6px; padding:2px 7px; font-size:10px; }
+  .card-tools > .play, .card-tools > .ping { font-size:0; gap:0; }
+  .status-pick selectedcontent:has(.i) .st-label { display:none; }
+  .card-tools > .play .i, .card-tools > .ping .i { width:16px; height:16px; }
+  .actions > .want { font-size:12px; }
+}
+/* Star ratings: the average on the cover, your own stars on the card */
+/* Same shape as the status badges on the cover; hovering it lists who rated */
+.rating-pill { position:absolute; left:10px; bottom:10px; display:inline-flex; align-items:center; gap:4px; padding:3px 10px;
+  border-radius:999px; background:#111214; color:#fff; font-size:12px; font-weight:700; letter-spacing:.04em;
+  box-shadow:0 2px 8px rgba(0,0,0,.35); cursor:default; }
+.rating-pill .i { width:14px; height:14px; color:#f0b232; fill:#f0b232; }
+.rating-pill > span:not(.played-badge) { color:#b5bac1; }
+/* Who rated: a small dark card like the profile card */
+#raters { position:fixed; z-index:20; width:270px; padding:12px; border-radius:12px; background:#111214; color:#f2f3f5; font-size:13px;
+  box-shadow:0 8px 24px rgba(0,0,0,.45); opacity:0; pointer-events:none; transform:translateY(4px); }
+#raters.show { opacity:1; transform:none; transition:opacity .12s, transform .12s; }
+#raters.show.pinned { pointer-events:auto; }
+.rt-chips { display:flex; flex-wrap:wrap; gap:4px; }
+.rt-chips .chip:not(.sale, .bnet, .demo) { background:#2b2d31; color:#f2f3f5; }
+.rt-head { display:flex; align-items:center; gap:6px; margin-bottom:8px; font-size:12px; font-weight:700; color:#b5bac1; }
+.rt-head b { color:#f2f3f5; font-size:15px; }
+.rt-head .i { width:16px; height:16px; color:#f0b232; fill:#f0b232; }
+.rt-verified { display:flex; align-items:center; gap:5px; margin:-2px 0 8px; font-size:12px; font-weight:600; color:#80848e; }
+.rt-verified .i { width:13px; height:13px; color:inherit; }
+.rt-verified.some { color:#3ba55d; }
+.rt-list { display:flex; flex-direction:column; gap:4px; background:#232428; border-radius:8px; padding:6px; }
+.rt-row { display:flex; align-items:center; gap:8px; padding:3px 4px; min-width:0; }
+.rt-av { width:24px; height:24px; border-radius:50%; object-fit:cover; flex:none; display:grid; place-items:center;
+  background:#2b2d31; font-size:11px; font-weight:700; }
+.rt-who { flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
+.rt-name { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.rt-who .played-badge { align-self:flex-start; }
+.rt-stars { display:flex; flex:none; }
+.rt-stars .i { width:13px; height:13px; color:#4e5058; }
+.rt-stars .i.on { color:#f0b232; fill:#f0b232; }
+/* "Played" badge: the bot saw this person playing the game in Discord, so their rating is from real play */
+.played-badge { display:inline-flex; align-items:center; gap:3px; padding:1px 7px 1px 5px; border-radius:999px;
+  background:rgba(35,165,90,.16); color:#3ba55d; font-size:11px; font-weight:700; }
+.played-badge .i { width:12px; height:12px; }
+.rating-pill .played-badge { background:none; padding:0 0 0 4px; margin-left:2px; border-left:1px solid rgba(255,255,255,.25);
+  border-radius:0; color:#3ba55d; font-weight:700; }
+.rating-pill .played-badge .i { width:13px; height:13px; color:#3ba55d; fill:none; }
+.rate-line { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); }
+.rate { display:inline-flex; gap:1px; }
+.rate-star { padding:2px; border:0; background:none; cursor:pointer; color:#6d7179; line-height:0; }
+.rate-star .i { width:19px; height:19px; color:inherit; }
+.rate-star.on { color:#f0b232; }
+.rate-star.on .i { fill:#f0b232; }
+.rate:hover .rate-star { color:#f0b232; }
+.rate:hover .rate-star .i { fill:#f0b232; }
+.rate-star:hover ~ .rate-star { color:#6d7179; }
+.rate-star:hover ~ .rate-star .i { fill:none; }
+/* One-time tip about Discord's activity sharing */
+.tip { display:flex; align-items:center; gap:12px; margin-top:12px; padding:10px 14px; border:1px solid var(--accent);
+  border-radius:12px; background:var(--chip); font-size:13px; color:var(--ink); }
+.tip[hidden] { display:none; }
+.tip > .i { width:20px; height:20px; flex:none; }
+.tip-text { flex:1; min-width:0; }
+.tip-actions { display:flex; flex-wrap:wrap; gap:6px; flex:none; justify-content:flex-end; }
+.tip .tip-close { background:none; color:var(--muted); border:1px solid var(--line); }
+.tip button { flex:none; font:inherit; font-size:12px; padding:6px 12px; border:0; border-radius:8px; background:#5865f2; color:#fff; cursor:pointer; }
+/* "Have you played these?": Played games still short of players, asked of each person until they've answered */
+.catchup { margin-top:12px; padding:14px 16px; border:1px solid var(--line); border-radius:12px; background:var(--card); }
+.catchup[hidden] { display:none; }
+.cu-head { display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.cu-head h2 { margin:0; font-family:"Lilita One", system-ui, sans-serif; font-weight:400; font-size:20px; }
+.cu-sub { margin:4px 0 8px; font-size:13px; color:var(--muted); }
+.cu-progress { font-size:12px; color:var(--muted); white-space:nowrap; }
+.cu-list { max-height:min(420px, 60vh); overflow:auto; }
+.cu-row { display:flex; align-items:center; gap:12px; padding:8px 0; border-top:1px solid var(--line); flex-wrap:wrap; }
+.cu-cover { width:64px; height:30px; flex:none; border-radius:6px; background:var(--chip) center/cover; }
+.cu-main { flex:1; min-width:140px; }
+.cu-title { display:block; font-size:14px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  color:inherit; text-decoration:none; }
+.cu-title:hover { color:var(--accent); text-decoration:underline; }
+.cu-who { display:flex; align-items:center; gap:8px; margin-top:3px; font-size:12px; color:var(--muted); }
+.cu-who .av { width:20px; height:20px; }
+.cu-who .ok { color:#3ba55d; font-weight:600; }
+.pips { display:inline-flex; gap:3px; }
+.pip { width:14px; height:5px; border-radius:3px; background:var(--line); }
+.pip.on { background:#3ba55d; }
+.cu-btns { display:flex; gap:6px; flex:none; }
+.cu-btns button { font:inherit; font-size:12px; display:inline-flex; align-items:center; gap:4px; padding:5px 10px; border-radius:8px;
+  border:1px solid var(--line); background:none; color:var(--ink); cursor:pointer; }
+.cu-btns button .i { width:14px; height:14px; }
+.cu-btns .cu-yes.on { background:rgba(35,165,90,.16); border-color:#3ba55d; color:#3ba55d; }
+.cu-btns .cu-no.on { background:var(--chip); color:var(--muted); }
+.cu-foot { display:flex; justify-content:space-between; align-items:center; gap:12px; padding-top:10px; border-top:1px solid var(--line);
+  font-size:12px; color:var(--muted); }
+.cu-foot button { font:inherit; font-size:12px; padding:6px 12px; border:0; border-radius:8px; background:#5865f2; color:#fff; cursor:pointer; }
+.cu-confirm { display:flex; gap:6px; flex:none; }
+.cu-foot .cu-cancel { background:none; color:var(--muted); border:1px solid var(--line); }
+</style>
+</head>
+<body>
+<header class="wrap">
+  <h1>What are we playing<span class="rot-line"><span id="rot" title="">next</span><span class="rot-q">?</span></span></h1>
+  <div class="server"><span class="server-icon" id="server-icon"></span><span>__GUILD__</span></div>
+  <div class="stats" id="stats"></div>
+</header>
+<section id="now" class="wrap" hidden>
+  <div class="now-row">
+    <div class="now-head" id="now-head">__GUILD__'s recent activity</div>
+    <div class="now-nav" id="now-nav" hidden>
+      <button id="now-prev" title="Scroll left" aria-label="Scroll left"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6l6 6"/></svg></button>
+      <button id="now-next" title="Scroll right" aria-label="Scroll right"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6l-6 6"/></svg></button>
+    </div>
+  </div>
+  <div class="now-track" id="now-track"></div>
+</section>
+<div class="wrap"><div class="tip" id="tip" hidden></div><section class="catchup" id="catchup" hidden></section></div>
+<div class="bar">
+  <div class="controls wrap">
+    <span class="view-tools"><a class="signin" id="signin" hidden></a><span class="hist" id="hist" hidden><button id="undo" disabled title="Undo your last change" aria-label="Undo"></button><button
+      id="redo" disabled title="Redo" aria-label="Redo"></button></span>
+      <span class="cols-pick" title="How many cards per row"><span data-icon="layout-grid"></span><select id="cols" aria-label="Cards per row">
+        <option value="">Fit window</option>
+        <option value="2">2 per row</option>
+        <option value="3">3 per row</option>
+        <option value="4">4 per row</option>
+        <option value="5">5 per row</option>
+      </select></span></span>
+    <div class="cmd">
+      <label class="cmd-search"><span data-icon="device-gamepad-2"></span><span class="cmd-ask">Looking for</span>
+        <input type="search" id="q" placeholder="a game, a tag, a note…" aria-label="Search games">
+        <span class="cmd-count" id="count"></span><kbd class="cmd-kbd" title="Press / to search">/</kbd></label>
+      <div class="cmd-pills">
+    <span class="pill" title="Sort"><span data-icon="flame"></span>
+    <select id="sort">
+      <option value="newest">Newest added</option>
+      <option value="oldest">Oldest added</option>
+      <option value="name">Name A–Z</option>
+      <option value="interest" selected>Most wanted</option>
+      <option value="rating">Best reviews</option>
+      <option value="price">Price: low → high</option>
+      <option value="price_desc">Price: high → low</option>
+      <option value="release">Newest release</option>
+      <option value="sale">On sale</option>
+      <option value="ours">Our rating</option>
+      <option value="refunds">Most refunded</option>
+    </select></span>
+    <span class="pill" title="Genres and tags"><span data-icon="tags"></span><details id="genre" class="multi">
+      <summary id="genre-label">All genres & tags</summary>
+      <div class="multi-panel">
+        <div class="multi-head"><span>Tick one or more</span><button type="button" id="genre-clear">Clear</button></div>
+        <input type="search" id="genre-q" placeholder="Find a genre or tag…" aria-label="Find a genre or tag">
+        <div class="multi-list" id="genre-list"></div>
+      </div>
+    </details></span>
+    <span class="pill" title="Status"><span data-icon="filter"></span><select id="status">
+      <option value="mine" id="status-mine" hidden>Games I want to play</option>
+      <option value="want">Not played yet</option>
+      <option value="" selected>Any status</option>
+      <option value="demo">Demo played</option>
+      <option value="played">Played</option>
+      <option value="refunded">Refunded</option>
+    </select></span>
+    <span class="pill person-pill" id="person" hidden></span>
+      </div>
+    </div>
+  </div>
+</div>
+<main id="grid" class="wrap"></main>
+<div id="mini">
+  <div class="mini-title">What are we playing<span class="rot-line"><span id="mini-rot">next</span><span class="rot-q">?</span></span></div>
+  <div class="mini-server">__GUILD__ · game catalog</div>
+  <div id="mini-playing"></div>
+</div>
+<div id="profile" role="tooltip"></div>
+<div id="raters" role="tooltip"></div>
+<div id="toast" role="status"></div>
+<script type="module">
+let DATA = __DATA__;
+let USERS = __USERS__;
+const CONFIG = __CONFIG__;
+const IN_DISCORD = CONFIG.live && new URLSearchParams(location.search).has("frame_id");
+// Marking games needs to know who you are: inside Discord the Activity tells us; in a normal browser you sign in
+// with Discord once (the token is kept in this browser for about a week)
+const BROWSER_SIGNIN = !IN_DISCORD && CONFIG.live && CONFIG.signIn && !!CONFIG.publicUrl;
+function storedSignin() {
+  try {
+    const s = JSON.parse(localStorage.getItem("catalog-signin") || "null");
+    if (s && s.until * 1000 > Date.now()) return s.token;
+    localStorage.removeItem("catalog-signin");
+  } catch {}
+  return null;
+}
+function signOut() {
+  try { localStorage.removeItem("catalog-signin"); } catch {}
+  location.reload();
+}
+const CAN_WANT = CONFIG.signIn && (IN_DISCORD || (BROWSER_SIGNIN && !!storedSignin()));
+let sdk = null, me = null, token = null;
+const ICONS = {"heart":"<path d=\"M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572\"/>","coin":"<path d=\"M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0\"/><path d=\"M14.8 9a2 2 0 0 0 -1.8 -1h-2a2 2 0 1 0 0 4h2a2 2 0 1 1 0 4h-2a2 2 0 0 1 -1.8 -1\"/><path d=\"M12 7v10\"/>","crown":"<path d=\"M12 6l4 6l5 -4l-2 10h-14l-2 -10l5 4z\"/>","music":"<path d=\"M3 17a3 3 0 1 0 6 0a3 3 0 0 0 -6 0\"/><path d=\"M13 17a3 3 0 1 0 6 0a3 3 0 0 0 -6 0\"/><path d=\"M9 17v-13h10v13\"/><path d=\"M9 8h10\"/>","clock":"<path d=\"M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0\"/><path d=\"M12 7v5l3 3\"/>","user":"<path d=\"M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0\"/><path d=\"M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2\"/>","playlist-add":"<path d=\"M19 8h-14\"/><path d=\"M5 12h9\"/><path d=\"M11 16h-6\"/><path d=\"M15 16h6\"/><path d=\"M18 13v6\"/>","x":"<path d=\"M18 6l-12 12\"/><path d=\"M6 6l12 12\"/>","arrow-back-up":"<path d=\"M9 14l-4 -4l4 -4\"/><path d=\"M5 10h11a4 4 0 1 1 0 8h-1\"/>","arrow-forward-up":"<path d=\"M15 14l4 -4l-4 -4\"/><path d=\"M19 10h-11a4 4 0 1 0 0 8h1\"/>","bell":"<path d=\"M10 5a2 2 0 1 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3h-16a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6\"/><path d=\"M9 17v1a3 3 0 0 0 6 0v-1\"/>","calendar":"<path d=\"M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12z\"/><path d=\"M16 3v4\"/><path d=\"M8 3v4\"/><path d=\"M4 11h16\"/><path d=\"M11 15h1\"/><path d=\"M12 15v3\"/>","check":"<path d=\"M5 12l5 5l10 -10\"/>","device-gamepad-2":"<path d=\"M12 5h3.5a5 5 0 0 1 0 10h-5.5l-4.015 4.227a2.3 2.3 0 0 1 -3.923 -2.035l1.634 -8.173a5 5 0 0 1 4.904 -4.019h3.4z\"/><path d=\"M14 15l4.07 4.284a2.3 2.3 0 0 0 3.925 -2.023l-1.6 -8.232\"/><path d=\"M8 9v2\"/><path d=\"M7 10h2\"/><path d=\"M14 10h2\"/>","discount":"<path d=\"M9 15l6 -6\"/><circle cx=\"9.5\" cy=\"9.5\" r=\".5\" fill=\"currentColor\"/><circle cx=\"14.5\" cy=\"14.5\" r=\".5\" fill=\"currentColor\"/><path d=\"M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0\"/>","filter":"<path d=\"M4 4h16v2.172a2 2 0 0 1 -.586 1.414l-4.414 4.414v7l-6 2v-8.5l-4.48 -4.928a2 2 0 0 1 -.52 -1.345v-2.227z\"/>","flame":"<path d=\"M12 10.941c2.333 -3.308 .167 -7.823 -1 -8.941c0 3.395 -2.235 5.299 -3.667 6.706c-1.43 1.408 -2.333 3.621 -2.333 5.588c0 3.704 3.134 6.706 7 6.706s7 -3.002 7 -6.706c0 -1.712 -1.232 -4.403 -2.333 -5.588c-2.084 3.353 -3.257 3.353 -4.667 2.235\"/>","flask":"<path d=\"M9 3l6 0\"/><path d=\"M10 9l4 0\"/><path d=\"M10 3v6l-4 11a.7 .7 0 0 0 .5 1h11a.7 .7 0 0 0 .5 -1l-4 -11v-6\"/>","help-circle":"<path d=\"M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0\"/><path d=\"M12 16v.01\"/><path d=\"M12 13a2 2 0 0 0 .914 -3.782a1.98 1.98 0 0 0 -2.414 .483\"/>","hourglass":"<path d=\"M6.5 7h11\"/><path d=\"M6.5 17h11\"/><path d=\"M6 20v-2a6 6 0 1 1 12 0v2a1 1 0 0 1 -1 1h-10a1 1 0 0 1 -1 -1z\"/><path d=\"M6 4v2a6 6 0 1 0 12 0v-2a1 1 0 0 0 -1 -1h-10a1 1 0 0 0 -1 1z\"/>","layout-grid":"<path d=\"M4 4m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z\"/><path d=\"M14 4m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z\"/><path d=\"M4 14m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z\"/><path d=\"M14 14m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z\"/>","message":"<path d=\"M8 9h8\"/><path d=\"M8 13h6\"/><path d=\"M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1 -3 3h-5l-5 3v-3h-2a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3h12z\"/>","movie":"<path d=\"M4 4m0 2a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2z\"/><path d=\"M8 4l0 16\"/><path d=\"M16 4l0 16\"/><path d=\"M4 8l4 0\"/><path d=\"M4 16l4 0\"/><path d=\"M4 12l16 0\"/><path d=\"M16 8l4 0\"/><path d=\"M16 16l4 0\"/>","player-play":"<path d=\"M7 4v16l13 -8z\"/>","plus":"<path d=\"M12 5l0 14\"/><path d=\"M5 12l14 0\"/>","receipt-refund":"<path d=\"M5 21v-16a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v16l-3 -2l-2 2l-2 -2l-2 2l-2 -2l-3 2\"/><path d=\"M15 14v-2a2 2 0 0 0 -2 -2h-4l2 -2m0 4l-2 -2\"/>","speakerphone":"<path d=\"M18 8a3 3 0 0 1 0 6\"/><path d=\"M10 8v11a1 1 0 0 1 -1 1h-1a1 1 0 0 1 -1 -1v-5\"/><path d=\"M12 8h0l4.524 -3.77a.9 .9 0 0 1 1.476 .692v12.156a.9 .9 0 0 1 -1.476 .692l-4.524 -3.77h-8a1 1 0 0 1 -1 -1v-4a1 1 0 0 1 1 -1h8\"/>","star":"<path d=\"M12 17.75l-6.172 3.245l1.179 -6.873l-5 -4.867l6.9 -1l3.086 -6.253l3.086 6.253l6.9 1l-5 4.867l1.179 6.873z\"/>","tags":"<path d=\"M3 8v4.172a2 2 0 0 0 .586 1.414l5.71 5.71a2.41 2.41 0 0 0 3.408 0l3.592 -3.592a2.41 2.41 0 0 0 0 -3.408l-5.71 -5.71a2 2 0 0 0 -1.414 -.586h-4.172a2 2 0 0 0 -2 2z\"/><path d=\"M18 19l1.592 -1.592a4.82 4.82 0 0 0 0 -6.816l-4.592 -4.592\"/><path d=\"M7 10h-.01\"/>","trophy":"<path d=\"M8 21l8 0\"/><path d=\"M12 17l0 4\"/><path d=\"M7 4l10 0\"/><path d=\"M17 4v8a5 5 0 0 1 -10 0v-8\"/><path d=\"M5 9m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0\"/><path d=\"M19 9m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0\"/>","users-group":"<path d=\"M10 13a2 2 0 1 0 4 0a2 2 0 0 0 -4 0\"/><path d=\"M8 21v-1a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v1\"/><path d=\"M15 5a2 2 0 1 0 4 0a2 2 0 0 0 -4 0\"/><path d=\"M17 10h2a2 2 0 0 1 2 2v1\"/><path d=\"M5 5a2 2 0 1 0 4 0a2 2 0 0 0 -4 0\"/><path d=\"M3 13v-1a2 2 0 0 1 2 -2h2\"/>","users":"<path d=\"M9 7m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0\"/><path d=\"M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2\"/><path d=\"M16 3.13a4 4 0 0 1 0 7.75\"/><path d=\"M21 21v-2a4 4 0 0 0 -3 -3.85\"/>"};  // Tabler Icons (MIT licence), outline paths
+const icon = (name) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
+const STATUS = { want: "Not played yet", demo: "Demo played", played: "Played" };  // refunds are per person
+const STATUS_ICON = { want: "arrow-back-up", demo: "flask", played: "trophy" };
+const BADGE = { demo: "Demo played", played: "Played" };
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+// Served by the bot, images go through its /img proxy (Discord Activities can't load other sites directly).
+const imgUrl = (u) => CONFIG.live ? "/img?u=" + encodeURIComponent(u) : u;
+const DEMO_TAG = "Demo";  // games with a free demo on Steam (shown with a flask icon)
+const SALE_TAG = "On sale";  // games on sale on Steam right now
+const BNET_TAG = "Battle.net";  // games from Battle.net instead of Steam
+const SPECIAL_TAGS = { [SALE_TAG]: ["sale", "discount"], [DEMO_TAG]: ["demo", "flask"], [BNET_TAG]: ["bnet"] };  // tag -> [chip class, icon]
+const tagIcon = (t) => SPECIAL_TAGS[t]?.[1] ? icon(SPECIAL_TAGS[t][1]) : "";
+const chipHtml = (t) => `<button class="chip${SPECIAL_TAGS[t] ? " " + SPECIAL_TAGS[t][0] : ""}" data-tag="${esc(t)}">${tagIcon(t)}${esc(t)}</button>`;
+const tagsOf = (e) => [...new Set([...(e.kind === "battlenet" ? [BNET_TAG] : []),
+                                    ...(e.discount_pct ? [SALE_TAG] : []), ...(e.demo_appid ? [DEMO_TAG] : []),
+                                    ...e.custom_tags, ...e.genres, ...e.tags])];
+const nullsLast = (a, b, f) => (a == null) - (b == null) || f();
+const SORTS = {
+  newest: (a, b) => b.added_at - a.added_at,
+  oldest: (a, b) => a.added_at - b.added_at,
+  name: (a, b) => a.title.localeCompare(b.title),
+  interest: (a, b) => b.interest - a.interest || b.added_at - a.added_at,
+  rating: (a, b) => nullsLast(a.review_pct, b.review_pct, () => b.review_pct - a.review_pct),
+  price: (a, b) => nullsLast(a.price_cents, b.price_cents, () => a.price_cents - b.price_cents),
+  price_desc: (a, b) => nullsLast(a.price_cents, b.price_cents, () => b.price_cents - a.price_cents),
+  release: (a, b) => nullsLast(a.release_ts, b.release_ts, () => b.release_ts - a.release_ts),
+  sale: (a, b) => (b.discount_pct || 0) - (a.discount_pct || 0) || b.interest - a.interest,  // biggest discount first
+  refunds: (a, b) => b.refunds.length - a.refunds.length || b.interested.length - a.interested.length,
+  ours: (a, b) => nullsLast(avgRating(a), avgRating(b), () => avgRating(b) - avgRating(a) || b.ratings.length - a.ratings.length),
+};
+
+// Ticked genres & tags. A game has to have all of them to show.
+const picked = new Set();
+
+function buildGenres() {
+  const counts = {};
+  DATA.forEach((e) => tagsOf(e).forEach((t) => (counts[t] = (counts[t] || 0) + 1)));
+  picked.forEach((t) => counts[t] || picked.delete(t));
+  $("genre-list").innerHTML = Object.keys(counts)
+    .sort((a, b) => counts[b] - counts[a] || a.localeCompare(b))  // most games first
+    .map((t) => `<label data-tag="${esc(t)}"><input type="checkbox" value="${esc(t)}"${picked.has(t) ? " checked" : ""}>
+      <span>${tagIcon(t) && tagIcon(t) + " "}${esc(t)}</span><span class="n">${counts[t]}</span></label>`).join("");
+  findGenre();
+  genreLabel();
+}
+
+function genreLabel() {
+  const list = [...picked];
+  $("genre-label").textContent = !list.length ? "All genres & tags" : list.length === 1 ? list[0] : `${list.length} tags: ${list.join(", ")}`;
+  $("genre").classList.toggle("on", list.length > 0);
+}
+
+function findGenre() {
+  const q = $("genre-q").value.trim().toLowerCase();
+  $("genre-list").querySelectorAll("label").forEach((l) => (l.hidden = !!q && !l.dataset.tag.toLowerCase().includes(q)));
+}
+
+const person = (id, name) => USERS[id] || { name: name || "Unknown" };
+function avatar(id, name) {
+  const p = person(id, name);
+  const attrs = `class="av" data-user="${esc(id)}" data-name="${esc(p.name)}" aria-label="${esc(p.name)}"`;
+  return p.avatar
+    ? `<img ${attrs} src="${esc(imgUrl(p.avatar))}" alt="${esc(p.name)}" loading="lazy">`
+    : `<span ${attrs}>${esc((p.name || "?")[0].toUpperCase())}</span>`;
+}
+
+// -- Discord-style profile card on avatar hover (tap on phones) --
+const pop = $("profile");
+const safeColor = (c) => /^#[0-9a-f]{6}$/i.test(c || "") ? c : null;
+let popFor = null, showTimer, pinned = false;  // pinned: opened by a click, stays until you click elsewhere
+
+// The profile's catalog numbers are buttons: show only the games this person added, or wants to play
+// ...and so is each bar of their scores: the games they gave that many stars
+let personFilter = null;  // { kind: "added" | "wants" | "rated", id, stars (for "rated") }
+const PERSON_FILTERS = {
+  added: { icon: "playlist-add", tip: (n) => `Games ${n} added`, chip: (n) => `Added by ${n}`,
+           ok: (e, id) => e.added_by === id },
+  wants: { icon: "device-gamepad-2", tip: (n) => `Games ${n} wants to play`, chip: (n) => `${n} wants to play`,
+           ok: (e, id) => e.interested.some((i) => i.id === id) },
+  rated: { icon: "star", chip: (n, stars) => `${n} gave ${stars} star${stars === 1 ? "" : "s"}`,
+           ok: (e, id, stars) => e.ratings.some((r) => r.id === id && r.stars === stars) },
+};
+const shortName = (id) => person(id).name.split(/\s+[(#/|]/)[0];  // "HAZELNUT (Pillcraftian #67)" -> "HAZELNUT"
+function personButton(kind, id, n) {
+  const f = PERSON_FILTERS[kind], tip = f.tip(shortName(id));
+  const on = personFilter?.kind === kind && personFilter.id === id;
+  return `<button class="pf-filter${on ? " on" : ""}" data-kind="${kind}" data-user="${esc(id)}" aria-pressed="${on}"
+    aria-label="${esc(tip)}">${icon(f.icon)}${n}<span class="pf-tip" aria-hidden="true">${esc(tip)}</span></button>`;
+}
+function setPersonFilter(kind, id, stars) {
+  personFilter = kind ? { kind, id, stars } : null;
+  render();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function profileHtml(id, fallbackName, game) {
+  const p = person(id, fallbackName);
+  const added = DATA.filter((e) => e.added_by === id).length;
+  const wants = DATA.filter((e) => e.interested.some((i) => i.id === id)).length;
+  const banner = p.banner ? `background-image:url('${esc(imgUrl(p.banner))}')`
+    : safeColor(p.accent) ? `background:${p.accent}` : "";
+  // Two of the games they want to play that the most others want too (not ones already played)
+  const topWanted = DATA.filter((e) => ["want", "demo"].includes(e.status) && e.interested.some((i) => i.id === id))
+    .sort((a, b) => b.interest - a.interest || b.added_at - a.added_at).slice(0, 2)
+    .map((g) => {
+      const others = g.interested.filter((i) => i.id !== id).length, s = others === 1 ? "" : "s";
+      return `<button class="pf-game" data-id="${g.id}" title="${esc(shortName(id))}${others ? ` and ${others} other${s}` : ""} want${
+        others ? "" : "s"} to play ${esc(g.title)}. Click to show it">
+      <span class="pf-thumb" style="${g.image ? `background-image:url('${esc(imgUrl(g.image))}')` : ""}"></span>
+      <span class="pf-gtitle">${esc(g.title)}</span><span class="pf-gn">${icon("users")}${others ? `+${others} other${s}` : "just them"}</span></button>`;
+    }).join("");
+  // How many games they gave each score (1 to 5 stars), as five small bars
+  const given = [0, 0, 0, 0, 0];
+  DATA.forEach((e) => e.ratings.forEach((r) => { if (r.id === id) given[r.stars - 1]++; }));
+  const rated = given.reduce((a, b) => a + b, 0), most = Math.max(...given);
+  const scores = rated ? `<div><div class="pf-h">Scores given<span class="pf-hn">${rated} game${rated === 1 ? "" : "s"} · avg ${
+      (given.reduce((sum, n, i) => sum + n * (i + 1), 0) / rated).toFixed(1)}</span></div>
+    <div class="pf-hist">${given.map((n, i) => {
+      const on = personFilter?.kind === "rated" && personFilter.id === id && personFilter.stars === i + 1;
+      const tip = `${n} game${n === 1 ? "" : "s"} given ${i + 1} star${i ? "s" : ""}${n ? (on ? " · click to show all games" : " · click to show them") : ""}`;
+      return `<button type="button" class="pf-col${on ? " on" : ""}" data-stars="${i + 1}" data-user="${esc(id)}"${n ? "" : " disabled"}
+        aria-label="${esc(tip)}"><span class="pf-bar" style="height:${Math.round(n / most * 24)}px"></span>
+        <span class="pf-lab">${i + 1}${icon("star")}</span><span class="pf-tip" aria-hidden="true">${esc(tip)}</span></button>`;
+    }).join("")}</div></div>` : "";
+  // Achievements they've earned (only earned ones; the Biggest refunder title first), the meaning on hover
+  // Secret ones you haven't unlocked yourself don't show on other people's cards: just one "?" with how many
+  const mine = new Set(((me && person(me).achievements) || []).map((a) => a.key));
+  const hidden = (a) => a.secret && id !== me && !mine.has(a.key);
+  const ach = (p.achievements || []).filter((a) => !hidden(a)), secrets = (p.achievements || []).filter(hidden).length;
+  if (secrets) ach.splice(ach[0]?.title ? 1 : 0, 0, { count: secrets, icon: "help-circle", color: "#80848e",
+    name: `${secrets} secret achievement${secrets === 1 ? "" : "s"}`, desc: `Unlock ${secrets === 1 ? "it" : "them"} yourself to see what ${secrets === 1 ? "it is" : "they are"}` });
+  // A row holds five: with more than five, the fifth spot is a round "+N" that opens up the rest
+  const cut = ach.length > 5 ? 4 : 5;
+  const badges = ach.length ? `<div><div class="pf-h">Achievements<span class="pf-hn">${(p.achievements || []).length} earned</span></div>
+    <div class="pf-ach">${ach.map((a, i) => `<span class="pf-badge${a.title ? " holder" : ""}${i >= cut ? " extra" : ""}"
+      style="--t:${esc(a.color)};--i:${i % 5}" tabindex="0" aria-label="${esc(a.name)}: ${esc(a.desc)}">${a.title ? `<span class="pf-crown">${icon("crown")}</span>` : ""}${
+      icon(a.icon)}${a.count ? `<span class="pf-count">${a.count}</span>` : ""}<span class="pf-tip"><b>${esc(a.name)}</b>${
+      a.secret ? " (secret)" : ""} · ${esc(a.desc)}</span></span>`).join("")}${
+      ach.length > cut ? `<button type="button" class="pf-more" title="Show all ${ach.length} achievements">+${
+        ach.length - cut}</button>` : ""}</div></div>` : "";
+  const self = me && id === me;
+  // Tag pings them in the game's channel; it needs you signed in and the game the avatar was shown on
+  const tag = CAN_WANT && game && !self
+    ? `<button class="pf-btn tag" data-user="${esc(id)}" data-id="${game.id}" title="Pings ${esc(p.name)} about ${esc(game.title)}">${icon("bell")}Tag for ${esc(game.title)}</button>` : "";
+  const message = self ? "" : `<a class="pf-btn" href="https://discord.com/users/${esc(id)}" target="_blank" rel="noopener">${icon("message")}Message</a>`;
+  return `<div class="pf-banner" style="${banner}"></div>
+    ${p.avatar ? `<img class="pf-avatar" src="${esc(imgUrl(p.avatar))}" alt="">` : `<div class="pf-avatar"></div>`}
+    <div class="pf-body">
+      <div><div class="pf-name">${esc(p.name)}</div>${p.username ? `<div class="pf-user">${esc(p.username)}</div>` : ""}</div>
+      <div class="pf-box">
+        <div><div class="pf-h">Game catalog</div><div class="pf-filters">${personButton("added", id, added)}${personButton("wants", id, wants)}</div>
+          ${topWanted ? `<div class="pf-sub">Their picks most others want too</div><div class="pf-games">${topWanted}</div>` : ""}</div>
+      </div>
+      ${scores || badges ? `<div class="pf-box">${scores}${badges}</div>` : ""}
+      ${message || tag ? `<div class="pf-actions">${message}${tag}</div>` : ""}
+    </div>`;
+}
+
+function showProfile(el) {
+  clearTimeout(showTimer);
+  if (popFor === el && pop.classList.contains("show")) return;
+  popFor = el;
+  const gameId = el.closest(".card")?.id.slice(1) || el.closest(".now-item")?.dataset.id;
+  pop.innerHTML = profileHtml(el.dataset.user, el.dataset.name, DATA.find((x) => String(x.id) === gameId));
+  // The card's transparent border is the gap to the avatar, so it sits right against it
+  const r = el.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+  let top = r.top - h;
+  if (top < 0) top = Math.min(r.bottom, innerHeight - h);
+  pop.style.left = Math.min(Math.max(0, r.left + r.width / 2 - w / 2), innerWidth - w) + "px";
+  pop.style.top = Math.max(0, top) + "px";
+  pop.classList.add("show");
+}
+function hideProfile() {
+  clearTimeout(showTimer);
+  pop.classList.remove("show");
+  popFor = null;
+  pinned = false;
+}
+// Hover an avatar for half a second to see the profile (so it doesn't pop up while scrolling past);
+// it goes away the moment the pointer leaves both the avatar and the card.
+document.addEventListener("mouseover", (ev) => {
+  if (pinned) return;  // a clicked profile stays open while the pointer wanders
+  const av = ev.target.closest(".av");
+  if (av) {
+    if (popFor !== av) { hideProfile(); showTimer = setTimeout(() => showProfile(av), 500); }
+  } else if (!ev.target.closest("#profile")) {
+    hideProfile();
+  }
+});
+document.addEventListener("click", (ev) => {
+  const av = ev.target.closest(".av");
+  if (av) { ev.preventDefault(); showProfile(av); pinned = true; }  // click (or tap): show right away and keep it open
+  else if (!ev.composedPath().includes(pop)) hideProfile();  // (the clicked button may already be swapped out)
+});
+pop.addEventListener("click", (ev) => {
+  const more = ev.target.closest(".pf-more");
+  if (more) {  // all achievements: the row opens up, and the card stays open and inside the window
+    more.closest(".pf-ach").classList.add("all");
+    pinned = true;
+    if (pop.getBoundingClientRect().bottom > innerHeight) pop.style.top = Math.max(0, innerHeight - pop.offsetHeight) + "px";
+    return;
+  }
+  const bar = ev.target.closest(".pf-col");
+  if (bar) {  // a score bar: the games they gave that many stars (again = clear)
+    hideProfile();
+    return setPersonFilter(bar.classList.contains("on") ? null : "rated", bar.dataset.user, +bar.dataset.stars);
+  }
+  const b = ev.target.closest(".pf-filter");
+  if (!b) return;
+  hideProfile();
+  setPersonFilter(b.classList.contains("on") ? null : b.dataset.kind, b.dataset.user);  // again = clear
+});
+addEventListener("scroll", hideProfile, { passive: true });
+addEventListener("keydown", (ev) => { if (ev.key === "Escape") hideProfile(); });
+addEventListener("resize", hideProfile);
+// Smart tips: shown one at a time, only to people they apply to. Each has buttons that take you straight to the
+// setting; "Got it" hides that tip for good in this browser.
+const TIPS = [
+  // Discord's phone app pauses other sound (music, podcasts) while any Activity is open, and Activities can't
+  // change that; the phone's browser doesn't, so offer to open the catalog there
+  { id: "tip-music", icon: "music",
+    show: () => IN_DISCORD && CONFIG.publicUrl && matchMedia("(pointer: coarse)").matches,
+    text: `<b>Music stopping?</b> Discord pauses it in Activities. Open the catalog in your browser instead.`,
+    actions: [{ label: "Open in browser", url: CONFIG.publicUrl }] },
+  { id: "tip-activity", icon: "player-play",
+    show: () => !CONFIG.seenPlaying.includes(me),  // the bot has never seen their games, so "playing" can't be marked
+    text: `<b>Want the catalog to mark you as playing automatically?</b> In Discord, open <b>User Settings → Activity Privacy</b>
+      and turn on <b>Share your detected activities with others</b>. Keep the Discord app open while you play, and don't use Invisible.`,
+    actions: [{ label: "Open Activity Privacy", discord: "activity-privacy", where: "User Settings → Activity Privacy" }] },
+  { id: "tip-steam", icon: "device-gamepad-2",
+    show: () => !CONFIG.steamHours.includes(me),  // no Steam hours yet, so their ratings can't show them
+    text: `<b>Want your ratings confirmed with a badge?</b> Ratings from people who really played the game get a
+      <span class="played-badge">${icon("check")}12 h</span> badge with their Steam hours. Link Steam in Discord
+      (<b>User Settings → Connections</b>) and set <b>Game details</b> to <b>Public</b> in Steam's privacy settings, then open the catalog again.`,
+    actions: [{ label: "Link Steam in Discord", discord: "connections", where: "User Settings → Connections" },
+              { label: "Open Steam privacy", steam: "https://steamcommunity.com/my/edit/settings" }] },
+];
+const tipClosed = (id) => { try { return localStorage.getItem(id) === "closed"; } catch { return false; } };
+let tip = null;
+function activityTip() {
+  tip = me && TIPS.find((t) => !tipClosed(t.id) && t.show());
+  $("tip").hidden = !tip;
+  if (!tip) return;
+  $("tip").innerHTML = `${icon(tip.icon)}<span class="tip-text">${tip.text}</span><span class="tip-actions">${
+    tip.actions.map((a, i) => `<button class="tip-go" data-i="${i}">${esc(a.label)}</button>`).join("")}
+    <button class="tip-close">Got it</button></span>`;
+}
+// Open a link: in Discord through the SDK (Discord won't follow links itself), in a browser directly
+async function openLink(url) {
+  if (sdk) { const { opened } = await sdk.commands.openExternalLink({ url }); if (opened === false) throw new Error("not opened"); }
+  else location.href = url;
+}
+$("tip").addEventListener("click", async (ev) => {
+  if (ev.target.closest(".tip-close")) {
+    try { localStorage.setItem(tip.id, "closed"); } catch {}
+    return activityTip();  // the next tip, if any
+  }
+  const a = tip?.actions[ev.target.closest(".tip-go")?.dataset.i];
+  if (!a) return;
+  try {
+    if (a.discord) await openLink(`discord://-/settings/${a.discord}`);
+    else if (a.url) await openLink(a.url);
+    else await openLink(`steam://openurl/${a.steam}`).catch(() => openLink(a.steam));
+  } catch {
+    toast(a.where ? `Open ${a.where} in Discord` : "Couldn't open it — try again");
+  }
+});
+// Minimising swaps the page for the poster, which loses the scroll position; remember it and go back after.
+const isMini = () => document.body.classList.contains("mini") || innerHeight <= 300;
+let keptScroll = 0, wasMini = isMini();
+addEventListener("scroll", () => { if (!isMini()) keptScroll = scrollY; }, { passive: true });
+function restoreScroll() { requestAnimationFrame(() => scrollTo(0, keptScroll)); }
+addEventListener("resize", () => { const mini = isMini(); if (wasMini && !mini) restoreScroll(); wasMini = mini; });
+// An open "Mark as…" menu follows its card when the page scrolls and slides over the sticky bar, so close it.
+// Swapping in a fresh copy is the only way to close it from code; its handlers live on the grid, so they still work.
+// Only a real scroll closes it: covers loading in can nudge the page a few pixels, which used to swallow the click.
+let menuScrollY = 0;
+document.addEventListener("pointerdown", (ev) => { if (ev.target.closest(".status-pick")) menuScrollY = scrollY; }, true);
+addEventListener("scroll", () => {
+  if (Math.abs(scrollY - menuScrollY) < 40) return;
+  try {
+    document.querySelectorAll(".status-pick:open").forEach((pick) => pick.replaceWith(pick.cloneNode(true)));
+  } catch {}  // browsers without :open don't have the stylable menu either
+}, { passive: true });
+// Redrawing the cards replaces every menu, so a redraw that isn't the person's own doing waits while one is in use.
+function menuInUse() {
+  if (document.activeElement?.tagName === "SELECT" || $("genre").open || document.querySelector(".ping-yes") || saving) return true;
+  try { return !!document.querySelector("select:open"); } catch { return false; }
+}
+// saving: changes still waiting to be saved (status, played answers); saveCount goes up as each save to the bot
+// starts and ends, so a live reload that downloaded the catalog meanwhile knows it may hold the old answer
+let redrawWaiting = false, saving = 0, saveCount = 0, reloadNow = false;
+function renderWhenFree() {
+  if (menuInUse()) { redrawWaiting = true; return; }
+  redrawWaiting = false;
+  render();
+}
+// Tag asks "are you sure?" first, right in the card (Discord blocks pop-up dialogs in Activities)
+pop.addEventListener("click", async (ev) => {
+  const btn = ev.target.closest(".pf-btn.tag, .pf-cancel");
+  if (!btn) return;
+  const box = btn.closest(".pf-actions");
+  if (btn.classList.contains("pf-cancel")) { box.querySelector(".pf-confirm").replaceWith(box.tagButton); return; }
+  const game = DATA.find((x) => String(x.id) === btn.dataset.id), name = person(btn.dataset.user).name;
+  if (!btn.classList.contains("yes")) {
+    const confirm = document.createElement("div");
+    confirm.className = "pf-confirm";
+    confirm.innerHTML = `<div>Ping <b>${esc(name)}</b> in Discord to play <b>${esc(game.title)}</b>?</div>
+      <div class="pf-row"><button class="pf-btn pf-cancel">Cancel</button>
+      <button class="pf-btn tag yes" data-user="${esc(btn.dataset.user)}" data-id="${game.id}">Yes, tag</button></div>`;
+    box.tagButton = btn;
+    btn.replaceWith(confirm);
+    return;
+  }
+  btn.disabled = true;
+  try {
+    await api("/api/tag", { entry_id: game.id, user_id: btn.dataset.user });
+    btn.closest(".pf-confirm").innerHTML = `<div>${icon("check")} Tagged ${esc(name)} to play <b>${esc(game.title)}</b></div>`;
+    toast(`Tagged ${name} to play ${game.title}`);
+  } catch (err) {
+    btn.disabled = false;
+    toast(err.status === 429 ? err.text : "Couldn't tag them — try again");
+  }
+});
+
+// -- "I want to play" and "I'm playing" buttons (each person marks themselves) --
+const isMine = (e) => me && e.interested.some((p) => p.id === me);
+const amPlaying = (e) => me && e.players.some((p) => p.id === me);
+const wantButton = (e) => isMine(e)
+  ? `<button class="want on" data-id="${e.id}" title="Click to remove">${icon("check")}You want to play</button>`
+  : `<button class="want" data-id="${e.id}">${icon("plus")}I want to play</button>`;
+const playButton = (e) => amPlaying(e)
+  ? `<button class="play on" data-id="${e.id}" title="You're playing this. Click when you stop">${icon("player-play")}Playing</button>`
+  : `<button class="play" data-id="${e.id}" title="Mark that you're playing this right now">${icon("player-play")}Playing</button>`;
+
+async function signIn() {
+  if (me) return;
+  if (!IN_DISCORD) {  // a normal browser: the token from signing in with Discord, checked by the bot
+    token = storedSignin();
+    if (!token) throw new Error("not signed in");
+    const res = await fetch("/api/me", { headers: { Authorization: "Bearer " + token } });
+    if (res.status === 401) signOut();  // expired or revoked: back to the sign-in button
+    if (!res.ok) throw new Error("sign-in check failed: HTTP " + res.status);
+    me = (await res.json()).id;
+    return;
+  }
+  const { code } = await sdk.commands.authorize({
+    client_id: CONFIG.clientId, response_type: "code", state: "", prompt: "none", scope: ["identify", "connections"] });  // connections: their linked Steam account, for Steam hours
+  const res = await fetch("/api/token", { method: "POST", headers: { "Content-Type": "application/json" },
+                                         body: JSON.stringify({ code }) });
+  if (!res.ok) throw new Error("sign-in failed: HTTP " + res.status);
+  token = (await res.json()).access_token;
+  me = (await sdk.commands.authenticate({ access_token: token })).user.id;
+}
+
+async function api(path, payload) {
+  await signIn();
+  saveCount++;  // a live reload downloading now may miss this change (see saveCount)
+  const res = await fetch(path, {
+    method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+    body: JSON.stringify(payload) }).finally(() => saveCount++);
+  if (res.status === 401 && !IN_DISCORD) signOut();  // the browser's sign-in ran out
+  if (!res.ok) throw Object.assign(new Error(path + ": HTTP " + res.status), { status: res.status, text: await res.text() });
+  return res.json();
+}
+const gameOf = (el) => DATA.find((x) => String(x.id) === el.dataset.id);
+
+function toast(text) {
+  const t = $("toast");
+  t.textContent = text;
+  t.classList.add("show");
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => t.classList.remove("show"), 2500);
+}
+
+// Each change you make (want to play, playing, status) can be undone and redone with the arrows by the search bar.
+async function setWant(e, want) {
+  const body = await api("/api/interest", { entry_id: e.id, want });
+  Object.assign(e, { interested: body.interested, interest: body.interest });
+  Object.assign(USERS, body.users);
+}
+async function setPlaying(e, playing) {
+  const body = await api("/api/playing", { entry_id: e.id, playing });
+  Object.assign(e, { players: body.players, interested: body.interested, interest: body.interest });
+  Object.assign(USERS, body.users);
+}
+// Star ratings of played games: each person 1-5, the cover shows the average
+const avgRating = (e) => e.ratings.length ? e.ratings.reduce((sum, r) => sum + r.stars, 0) / e.ratings.length : null;
+const myRating = (e) => e.ratings.find((r) => r.id === me)?.stars || 0;
+// Ratings from people who really played the game get a "played" badge: the bot saw them playing it in Discord,
+// or Steam has hours of it for them (only for people who linked Steam to Discord)
+const playedBadge = (text) => `<span class="played-badge">${icon("check")}${text}</span>`;
+const hours = (min) => min < 60 ? `${min} min` : `${Math.round(min / 60)} h`;
+const proof = (r) => !r.minutes ? "seen playing it" : r.tracked ? `${hours(r.minutes)} played` : `${hours(r.minutes)} on Steam`;
+const ratersTitle = (e) => `Average of ${e.ratings.length} rating${e.ratings.length === 1 ? "" : "s"}:\n` + e.ratings
+  .map((r) => `${person(r.id).name}: ${r.stars}/5${r.played ? ` (${proof(r)})` : ""}`).join("\n");
+const rateRow = (e) => `<div class="rate-line"><span>Your rating</span><span class="rate" data-id="${e.id}">${
+  [1, 2, 3, 4, 5].map((n) => `<button class="rate-star${n <= myRating(e) ? " on" : ""}" data-stars="${n}"
+    title="${n === myRating(e) ? "Remove your rating" : `${n} of 5`}" aria-label="${n} of 5">${icon("star")}</button>`).join("")}</span>${
+  myPlayed(e.ratings.find((r) => r.id === me))}</div>`;
+const myPlayed = (r) => !r?.played ? "" : `<span title="${!r.minutes ? "The bot saw you playing it in Discord"
+  : r.tracked ? "Time the bot saw you playing it in Discord" : "Your hours on Steam"}">${
+  playedBadge(r.minutes ? hours(r.minutes) : "Played")}</span>`;
+// Hovering the rating on a cover shows who rated it, with their stars and proof they played
+const raters = $("raters");
+let ratersFor = null, ratersTimer;
+function ratersHtml(e) {
+  const face = (p) => p.avatar ? `<img class="rt-av" src="${esc(imgUrl(p.avatar))}" alt="">`
+    : `<span class="rt-av">${esc((p.name || "?")[0].toUpperCase())}</span>`;
+  const verified = e.ratings.filter((r) => r.played).length;  // seen playing it in Discord, or has Steam hours
+  const stars = (n) => [1, 2, 3, 4, 5].map((i) => icon("star").replace('class="i"', `class="i${i <= n ? " on" : ""}"`)).join("");
+  return `<div class="rt-head">${icon("star")}<b>${avgRating(e).toFixed(1)}</b>average of ${e.ratings.length} rating${
+    e.ratings.length === 1 ? "" : "s"}</div><div class="rt-verified${verified ? " some" : ""}">${icon("check")}${
+    e.ratings.length === 1 ? (verified ? "Verified as played" : "Not verified as played")
+    : !verified ? "None verified as played" : verified === e.ratings.length ? `All ${verified} verified as played`
+    : `${verified} of ${e.ratings.length} verified as played`}</div><div class="rt-list">${[...e.ratings].sort((a, b) => b.stars - a.stars).map((r) => {
+      const p = person(r.id);
+      return `<div class="rt-row">${face(p)}<span class="rt-who"><span class="rt-name">${esc(p.name)}</span>${
+        r.played ? playedBadge(esc(proof(r))) : ""}</span><span class="rt-stars" aria-label="${r.stars} of 5">${stars(r.stars)}</span></div>`;
+    }).join("")}</div>`;
+}
+// The same card for the refund part of the cover badge: who refunded it
+function refundersHtml(e) {
+  const face = (p) => p.avatar ? `<img class="rt-av" src="${esc(imgUrl(p.avatar))}" alt="">`
+    : `<span class="rt-av">${esc((p.name || "?")[0].toUpperCase())}</span>`;
+  return `<div class="rt-head">${icon("receipt-refund").replace('class="i"', 'class="i rf"')}Refunded on Steam by</div>
+    <div class="rt-list">${e.refunds.map((r) => { const p = person(r.id, r.name);
+      return `<div class="rt-row">${face(p)}<span class="rt-who"><span class="rt-name">${esc(p.name)}</span></span></div>`; }).join("")}</div>
+    ${CAN_WANT ? `<div class="rt-hint">Mark yours in the status menu</div>` : ""}`;
+}
+// ...and for a card's "+N": everyone in that group, or all the game's tags (click one to filter by it)
+function moreHtml(e, kind) {
+  const face = (p) => p.avatar ? `<img class="rt-av" src="${esc(imgUrl(p.avatar))}" alt="">`
+    : `<span class="rt-av">${esc((p.name || "?")[0].toUpperCase())}</span>`;
+  if (kind === "tags") return `<div class="rt-head">${icon("tags").replace('class="i"', 'class="i rf"')}All ${tagsOf(e).length} tags</div>
+    <div class="rt-chips">${tagsOf(e).map(chipHtml).join("")}</div><div class="rt-hint">Click a tag to show its games</div>`;
+  const list = { playing: e.players, played: playedNotPlaying(e), refunds: e.refunds, wants: e.interested }[kind] || [];
+  return `<div class="rt-head">${esc(PEOPLE[kind][1])} · ${list.length}</div>
+    <div class="rt-list">${list.map((r) => { const p = person(r.id, r.name);
+      return `<div class="rt-row">${face(p)}<span class="rt-who"><span class="rt-name">${esc(p.name)}</span></span></div>`; }).join("")}</div>
+    ${kind === "played" && beforeRule(e) ? `<div class="rt-hint">${OLD_PLAYED}</div>` : ""}`;
+}
+let ratersPinned = false;  // a "+N" list opened by a click stays open while the pointer moves to it
+function showRaters(pill) {
+  const e = DATA.find((x) => String(x.id) === pill.dataset.id), refund = pill.classList.contains("refund");
+  const more = pill.dataset.list;  // a card's "+N"
+  if (!more && !(refund ? e?.refunds.length : e?.ratings.length)) return;
+  if (more && !e) return;
+  ratersFor = pill;
+  pill.classList.toggle("open", refund || !!more);
+  raters.innerHTML = more ? moreHtml(e, more) : refund ? refundersHtml(e) : ratersHtml(e);
+  const r = pill.getBoundingClientRect(), w = raters.offsetWidth, h = raters.offsetHeight;
+  let top = refund ? r.bottom + 6 : r.top - h - 6;  // the refund badge sits at the top of the cover: open below it
+  if (top < 0 || top + h > innerHeight) top = refund ? r.top - h - 6 : Math.min(r.bottom + 6, innerHeight - h);
+  raters.style.left = Math.min(Math.max(0, refund ? r.right - w : r.left), innerWidth - w) + "px";
+  raters.style.top = Math.max(0, top) + "px";
+  raters.classList.add("show");
+}
+function hideRaters() {
+  clearTimeout(ratersTimer);
+  raters.classList.remove("show");
+  ratersFor?.classList.remove("open");
+  ratersFor = null;
+  ratersPinned = false;
+  raters.classList.remove("pinned");
+}
+document.addEventListener("mouseover", (ev) => {
+  if (ratersPinned) return;
+  const pill = ev.target.closest(".rating-pill, .badge.refund, .pp-more, .chip-more");
+  if (pill === ratersFor) return;
+  hideRaters();
+  if (pill) ratersTimer = setTimeout(() => showRaters(pill), 200);
+});
+// Touch: a tap on the refund badge or a "+N" opens the list instead of opening the game; a tap elsewhere closes it.
+// A clicked list stays open, so its tags can be clicked.
+document.addEventListener("click", (ev) => {
+  const pill = ev.target.closest(".badge.refund, .pp-more, .chip-more");
+  if (pill) {
+    ev.preventDefault(); ev.stopPropagation();
+    if (pill !== ratersFor || !raters.classList.contains("show")) { hideRaters(); showRaters(pill); }
+    ratersPinned = !!pill.dataset.list;
+    raters.classList.toggle("pinned", ratersPinned);
+  } else if (ratersFor && !ev.composedPath().includes(raters)) hideRaters();
+}, true);
+raters.addEventListener("click", (ev) => {
+  const tag = ev.target.closest(".chip")?.dataset.tag;
+  if (!tag) return;
+  hideRaters();
+  picked.add(tag); buildGenres(); render(); window.scrollTo({ top: 0, behavior: "smooth" });
+});
+addEventListener("scroll", hideRaters, { passive: true });
+async function setRating(e, stars) {
+  const body = await api("/api/rate", { entry_id: e.id, stars });
+  Object.assign(e, playedFields(body), { ratings: body.ratings });  // a rating counts as having played it
+}
+
+// -- who played what: a game is Played once CONFIG.playersNeeded of us have played it. Each person counts once
+// the bot knows they played it (a rating, a refund, Steam hours, seen playing it in Discord) or they say so. --
+const PLAYERS_NEEDED = CONFIG.playersNeeded || 3;
+const iPlayed = (e) => !!me && e.played_by.includes(me);
+const iSaidPlayed = (e) => iPlayed(e) && !e.played_auto.includes(me);  // only because they said so: they can take it back
+const iSaidNot = (e) => !!me && e.not_played.includes(me);
+const playedFields = ({ status, played_by, played_auto, not_played }) => ({ status, played_by, played_auto, not_played });
+// Played by hand before the rule, still short of players: it keeps its place
+const beforeRule = (e) => e.status === "played" && e.played_by.length < PLAYERS_NEEDED;
+// Your answer shows at once; the saves go to the bot one at a time, in the order you clicked, so clicking the same
+// game twice quickly can't end the wrong way round. A save that fails reloads the catalog to show what was kept.
+let playedSaves = Promise.resolve();
+const lastAsked = {};  // game id -> the answer you clicked last
+function showPlayed(e, played) {
+  const auto = e.played_auto.includes(me);  // the bot knows you played it anyway
+  e.played_by = e.played_by.filter((id) => id !== me || auto);
+  e.not_played = e.not_played.filter((id) => id !== me);
+  if (played === true && !auto) e.played_by = [...e.played_by, me];
+  if (played === false) e.not_played = [...e.not_played, me];
+  if (e.played_by.length >= PLAYERS_NEEDED) e.status = "played";  // the bot does the same once it's saved
+}
+function setPlayed(e, played) {  // true: I played it, false: I didn't, null: take my answer back
+  showPlayed(e, played);
+  renderCatchUp();
+  lastAsked[e.id] = played;
+  saving++;
+  const save = playedSaves.then(async () => {
+    try {
+      const body = await api("/api/played", { entry_id: e.id, played });
+      Object.assign(USERS, body.users);
+      if (lastAsked[e.id] === played) Object.assign(cur(e), playedFields(body));  // else a newer click is on its way
+    } catch (err) {
+      reloadNow = true;
+      throw err;
+    } finally {
+      saving--;
+      renderWhenFree();
+    }
+  });
+  playedSaves = save.catch(() => {});
+  return save;
+}
+const pips = (n) => `<span class="pips" aria-hidden="true">${[...Array(PLAYERS_NEEDED)].map((_, i) =>
+  `<span class="pip${i < n ? " on" : ""}"></span>`).join("")}</span>`;
+
+// "Have you played these?": the Played games still short of players that you haven't played (as far as the bot
+// knows) or answered for. Answered games stay in the list until it's closed, so a wrong click can be fixed.
+// A one-off: asked until you've answered them all, or until the deadline (then they keep their spot as they are).
+const catchUpKept = new Set();
+const catchUpOver = () => CONFIG.playedDeadline && Date.now() / 1000 > CONFIG.playedDeadline;
+// "Later" hides it for the rest of the day (after asking, as there's no way to bring it back sooner)
+const today = () => new Date().toDateString();
+const catchUpLater = () => { try { return localStorage.getItem("catchup-later") === today(); } catch { return false; } };
+const catchUpGames = () => DATA.filter((e) => e.status === "played" && (catchUpKept.has(e.id)
+  || (e.played_by.length < PLAYERS_NEEDED && !iPlayed(e) && !iSaidNot(e))))
+  .sort((a, b) => b.played_by.length - a.played_by.length || a.title.localeCompare(b.title));
+function renderCatchUp() {
+  const games = me && CAN_WANT && !catchUpLater() && !catchUpOver() ? catchUpGames() : [];
+  $("catchup").hidden = !games.length;
+  if (!games.length) return;
+  const played = DATA.filter((e) => e.status === "played"), full = played.filter((e) => e.played_by.length >= PLAYERS_NEEDED).length;
+  const left = games.filter((e) => !iPlayed(e) && !iSaidNot(e)).length;
+  const scrolled = $("catchup").querySelector(".cu-list")?.scrollTop || 0;  // redrawn after every answer: stay put
+  $("catchup").innerHTML =`<div class="cu-head"><h2>Have you played these?</h2>
+    <span class="cu-progress">${full} of ${played.length} Played games have ${PLAYERS_NEEDED} players ${pips(Math.round(full / played.length * PLAYERS_NEEDED))}</span></div>
+    <p class="cu-sub">A game is Played once ${PLAYERS_NEEDED} of us have played it. These are Played but still short of players.
+      Your ratings, refunds and Steam hours already count, so only games the bot can't tell about are here.</p>
+    <div class="cu-list">${games.map((e) => {
+      const n = e.played_by.length;
+      return `<div class="cu-row"><span class="cu-cover"${e.image ? ` style="background-image:url('${esc(imgUrl(e.image))}')"` : ""}></span>
+        <div class="cu-main"><a class="cu-title" href="${esc(gameLink(e))}" target="_blank" rel="noopener" title="${esc(e.title)}">${esc(e.title)}</a><div class="cu-who"><span class="stack">${
+          e.played_by.map((id) => avatar(id)).join("")}</span>${n >= PLAYERS_NEEDED ? `<span class="ok">${n} players, counts as played</span>`
+          : `<span>${n} of ${PLAYERS_NEEDED} players</span>`}${pips(n)}</div></div>
+        <div class="cu-btns"><button class="cu-yes${iPlayed(e) ? " on" : ""}" data-id="${e.id}"${iPlayed(e) && !iSaidPlayed(e) ? " disabled" : ""}>${
+          icon("check")}Played it</button><button class="cu-no${iSaidNot(e) ? " on" : ""}" data-id="${e.id}">Didn't play</button></div></div>`;
+    }).join("")}</div>
+    <div class="cu-foot"><span>${left ? `${left} left for you` : "All answered, thanks"}</span><button class="cu-close">${left ? "Later" : "Done"}</button></div>`;
+  $("catchup").querySelector(".cu-list").scrollTop = scrolled;
+}
+$("catchup").addEventListener("click", async (ev) => {
+  const foot = $("catchup").querySelector(".cu-foot");
+  if (ev.target.closest(".cu-close")) {
+    if (!catchUpGames().some((e) => !iPlayed(e) && !iSaidNot(e))) {  // all answered: just close
+      catchUpKept.clear();
+      $("catchup").hidden = true;
+      return;
+    }
+    foot.dataset.before = foot.innerHTML;
+    foot.innerHTML = `<span>Hide this until tomorrow? It won't come back before then.</span>
+      <span class="cu-confirm"><button class="cu-cancel">Cancel</button><button class="cu-hide">Yes, hide it</button></span>`;
+    return;
+  }
+  if (ev.target.closest(".cu-cancel")) { foot.innerHTML = foot.dataset.before; return; }
+  if (ev.target.closest(".cu-hide")) {
+    try { localStorage.setItem("catchup-later", today()); } catch {}
+    catchUpKept.clear();
+    $("catchup").hidden = true;
+    return;
+  }
+  const btn = ev.target.closest(".cu-yes, .cu-no");
+  if (!btn) return;
+  const e = gameOf(btn), yes = btn.classList.contains("cu-yes");
+  const before = iSaidPlayed(e) ? true : iSaidNot(e) ? false : null;
+  const after = yes ? (iSaidPlayed(e) ? null : true) : (iSaidNot(e) ? null : false);  // the same button again takes it back
+  catchUpKept.add(e.id);
+  const saved = setPlayed(e, after);  // shows right away, saves in the background
+  remember({ label: after ? `played ${e.title}` : after === false ? `didn't play ${e.title}` : `took back your answer for ${e.title}`,
+             redo: () => setPlayed(cur(e), after), undo: () => setPlayed(cur(e), before) });
+  if (after && e.played_by.length === PLAYERS_NEEDED) toast(`${e.title} now has ${PLAYERS_NEEDED} players`);
+  try {
+    await saved;
+  } catch (err) {
+    console.error(err);
+    toast(`Couldn't save your answer for ${e.title} — try again`);
+  }
+});
+$("grid").addEventListener("click", async (ev) => {
+  const star = ev.target.closest(".rate-star");
+  if (!star) return;
+  const e = gameOf(star.closest(".rate")), before = myRating(e), n = Number(star.dataset.stars);
+  const stars = n === before ? 0 : n;  // clicking your own rating again removes it
+  try {
+    await setRating(e, stars);
+    remember({ label: stars ? `rated ${e.title} ${stars} of 5` : `removed your rating of ${e.title}`,
+               redo: () => setRating(cur(e), stars), undo: () => setRating(cur(e), before) });
+    render();
+  } catch (err) {
+    console.error(err);
+    toast("Couldn't save your rating — try again");
+  }
+});
+async function setStatus(e, status) {
+  e.status = (await api("/api/status", { entry_id: e.id, status })).status;
+}
+// A change: how to do it again (redo) and how to take it back (undo). Live updates replace the game objects,
+// so undo and redo look the game up again by id.
+const cur = (e) => DATA.find((x) => x.id === e.id) || e;
+const changes = { undo: [], redo: [] };
+function remember(change) {
+  changes.undo.push(change);
+  changes.redo.length = 0;
+  histButtons();
+}
+function histButtons() {
+  $("undo").disabled = !changes.undo.length;
+  $("redo").disabled = !changes.redo.length;
+  $("undo").title = changes.undo.length ? `Undo: ${changes.undo.at(-1).label}` : "Nothing to undo";
+  $("redo").title = changes.redo.length ? `Redo: ${changes.redo.at(-1).label}` : "Nothing to redo";
+}
+async function stepHistory(from, to, verb) {
+  const change = from.pop();
+  if (!change) return;
+  histButtons();
+  try {
+    await (verb === "Undid" ? change.undo() : change.redo());
+    to.push(change);
+    render();
+    toast(`${verb}: ${change.label}`);
+  } catch (err) {
+    console.error(err);
+    from.push(change);
+    toast("Couldn't change it back — try again");
+  }
+  histButtons();
+}
+$("undo").addEventListener("click", () => stepHistory(changes.undo, changes.redo, "Undid"));
+$("redo").addEventListener("click", () => stepHistory(changes.redo, changes.undo, "Redid"));
+
+$("grid").addEventListener("click", async (ev) => {
+  const btn = ev.target.closest(".want, .play");
+  if (!btn) return;
+  btn.disabled = true;
+  try {
+    const e = gameOf(btn);
+    if (btn.classList.contains("play")) {
+      const playing = !amPlaying(e), wanted = isMine(e);  // marking "playing" also marks "want to play"
+      await setPlaying(e, playing);
+      remember({ label: `${playing ? "playing" : "stopped playing"} ${e.title}`,
+                 redo: () => setPlaying(cur(e), playing),
+                 undo: async () => { await setPlaying(cur(e), !playing); if (playing && !wanted) await setWant(cur(e), false); } });
+    } else {
+      const want = !isMine(e);
+      await setWant(e, want);
+      remember({ label: `${want ? "want to play" : "don't want to play"} ${e.title}`,
+                 redo: () => setWant(cur(e), want), undo: () => setWant(cur(e), !want) });
+    }
+    render();
+  } catch (err) {
+    console.error(err);
+    btn.textContent = "Couldn't save — try again";
+    btn.disabled = false;
+  }
+});
+
+$("undo").innerHTML = icon("arrow-back-up");
+$("redo").innerHTML = icon("arrow-forward-up");
+$("hist").hidden = !CAN_WANT;
+// In a normal browser: "Sign in with Discord" (Discord's own login page, then back here), or "Sign out" once signed in
+if (BROWSER_SIGNIN) {
+  const s = $("signin");
+  s.hidden = false;
+  if (CAN_WANT) {
+    s.innerHTML = `${icon("arrow-back-up")}Sign out`;
+    s.classList.add("out");
+    s.href = "#";
+    s.addEventListener("click", (ev) => { ev.preventDefault(); signOut(); });
+  } else {
+    s.innerHTML = `${icon("users")}Sign in with Discord`;
+    s.href = CONFIG.publicUrl + "/auth/login";
+  }
+  if (CAN_WANT) signIn().then(() => { renderWhenFree(); }).catch((err) => console.warn("Not signed in", err));
+}
+
+// -- "Ping to play": pick who to ping for a game (everyone who wants it is ticked), then ping them --
+const pingButton = (e) => `<button class="ping" data-id="${e.id}" title="Ping people to play ${esc(e.title)}">${icon("speakerphone")}Ping</button>`;
+// The list starts with everyone who wants to play it (ticked); anyone else can be added with the search.
+const pingFace = (p) => p.avatar ? `<img src="${esc(imgUrl(p.avatar))}" alt="">` : `<span class="ping-av">${esc((p.name || "?")[0])}</span>`;
+const pingRow = (id) => `<label class="ping-row"><input type="checkbox" value="${esc(id)}" checked>${pingFace(person(id))}
+  <span class="ping-name">${esc(person(id).name)}</span></label>`;
+const pingList = (e) => [...new Set([...e.players, ...e.interested].map((p) => p.id))]
+  .filter((id) => id !== me).map(pingRow).join("");
+// Everyone in the server, fetched the first time someone searches (people who haven't touched the catalog yet
+// aren't in USERS)
+let MEMBERS = null;
+async function loadMembers(box) {
+  if (MEMBERS) return;
+  MEMBERS = {};
+  try {  // only for signed-in members of the server
+    await signIn();
+    const res = await fetch("/members.json" + location.search, { headers: { Authorization: "Bearer " + token } });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    MEMBERS = await res.json();
+  } catch { MEMBERS = null; return; }
+  if (box.isConnected) pingSearch(box);
+}
+function pingSearch(box) {
+  const q = box.querySelector(".ping-search").value.trim().toLowerCase();
+  const listed = new Set([...box.querySelectorAll(".ping-row input")].map((c) => c.value));
+  if (q) loadMembers(box);
+  const found = !q ? [] : Object.entries({ ...MEMBERS, ...USERS })
+    .filter(([id, u]) => id !== me && id !== CONFIG.clientId && !listed.has(id) &&
+      [u.name, u.username].some((n) => (n || "").toLowerCase().includes(q)))
+    .slice(0, 5);
+  box.querySelector(".ping-results").innerHTML = q && !found.length ? `<span class="ping-empty">Nobody found</span>`
+    : found.map(([id, u]) => `<button class="ping-result" data-user="${esc(id)}">${pingFace(u)}<span class="ping-name">${esc(u.name)}</span></button>`).join("");
+}
+function pingCount(box) {
+  const n = box.querySelectorAll(".ping-row input:checked").length, yes = box.querySelector(".ping-yes");
+  yes.disabled = !n;
+  yes.lastChild.textContent = n ? `Ping ${n} ${n === 1 ? "person" : "people"}` : "Pick someone";
+}
+$("grid").addEventListener("click", async (ev) => {
+  const btn = ev.target.closest(".ping");
+  if (!btn) return;
+  const tools = btn.closest(".card-tools"), e = gameOf(tools.querySelector(".status-pick"));
+  const toggle = tools.querySelector(":scope > .ping"), open = tools.querySelector(".ping-pick");
+  if (btn.classList.contains("ping-no") || (btn === toggle && open)) { open?.remove(); toggle.classList.remove("on"); return; }
+  if (!btn.classList.contains("ping-yes")) {
+    toggle.classList.add("on");
+    const list = pingList(e);
+    tools.insertAdjacentHTML("beforeend", `<div class="ping-pick"><div class="ping-head">Ping to play <b>${esc(e.title)}</b></div>
+      <div class="ping-list">${list || `<span class="ping-empty">Nobody else wants to play or is playing it yet. Search for someone below.</span>`}</div>
+      <input type="search" class="ping-search" placeholder="Add someone else…" aria-label="Find someone to ping">
+      <div class="ping-results"></div>
+      <div class="ping-actions"><button class="ping ping-no">Cancel</button>
+        <button class="ping ping-yes">${icon("speakerphone")}<span></span></button></div></div>`);
+    pingCount(tools.querySelector(".ping-pick"));
+    return;
+  }
+  const box = btn.closest(".ping-pick"), ids = [...box.querySelectorAll(".ping-row input:checked")].map((c) => c.value);
+  btn.disabled = true;
+  try {
+    const { pinged, waiting } = await api("/api/ping", { entry_id: e.id, user_ids: ids });
+    box.innerHTML = `<div class="ping-head">${icon("check")} Pinged ${pinged} ${pinged === 1 ? "person" : "people"} to play
+      <b>${esc(e.title)}</b>${waiting.length ? `<br><span class="ping-note">Skipped ${esc(waiting.join(", "))}: you pinged them less than 30 minutes ago</span>` : ""}</div>`;
+    toast(`Pinged ${pinged} ${pinged === 1 ? "person" : "people"} to play ${e.title}`);
+  } catch (err) {
+    btn.disabled = false;
+    toast(err.status === 429 || err.status === 400 ? err.text : "Couldn't ping them — try again");
+  }
+});
+$("grid").addEventListener("change", (ev) => {
+  const box = ev.target.closest(".ping-pick");
+  if (box) pingCount(box);
+});
+$("grid").addEventListener("input", (ev) => {
+  if (ev.target.classList.contains("ping-search")) pingSearch(ev.target.closest(".ping-pick"));
+});
+$("grid").addEventListener("click", (ev) => {
+  const add = ev.target.closest(".ping-result");
+  if (!add) return;
+  const box = add.closest(".ping-pick"), list = box.querySelector(".ping-list");
+  list.querySelector(".ping-empty")?.remove();
+  USERS[add.dataset.user] ||= MEMBERS?.[add.dataset.user];
+  list.insertAdjacentHTML("beforeend", pingRow(add.dataset.user));
+  box.querySelector(".ping-search").value = "";
+  pingSearch(box);
+  pingCount(box);
+});
+
+// -- status menu (Demo played, or back to not played yet), shared by the whole group --
+// The button shows the chosen option itself (icon + label, the label cut with "…" when narrow).
+// "Demo played" is only offered when the game has a demo, or is already marked (its demo may be gone since).
+// Played isn't picked: a game becomes Played once enough of us played it, and then stays Played.
+// Personal, below the group statuses: "I played it" and "I refunded it" mark only you.
+const iRefunded = (e) => me && e.refunds.some((p) => p.id === me);
+function statusPick(e) {
+  const locked = e.status === "played" && !beforeRule(e);  // enough of us played it: nothing else to pick
+  const options = Object.entries(STATUS).filter(([k]) => k === "played" ? e.status === "played" || e.played_before_rule
+      : !locked && (k !== "demo" || e.past_demo_appid || e.status === "demo"))
+    // Each option has its own tooltip, or it would show the menu's (the game's current status) on every row
+    .map(([k, label]) => `<option value="${k}" title="${esc(label)}"${k === e.status ? " selected" : ""}>${
+      k === "want" && e.status === "want"  // the button reads "Status" until a game is marked; the list always says "Not played yet"
+        ? `<span class="st-full">${icon(STATUS_ICON[k])}<span class="st-label">${label}</span></span><span class="st-unset">Status</span>`
+        : `${icon(STATUS_ICON[k])}<span class="st-label">${label}</span>`}</option>`).join("");
+  // Played by you: "I played it" counts you towards Played; the bot may already know (Steam hours, a rating...)
+  const played = `<option value="played-me" title="${iPlayed(e) && !iSaidPlayed(e) ? "The bot already knows you played it"
+    : `Counts you towards the ${PLAYERS_NEEDED} players a game needs to be Played`}"${iPlayed(e) && !iSaidPlayed(e) ? " disabled" : ""}>${
+    icon("check")}<span class="st-label">${iSaidPlayed(e) ? "I haven't played it" : iPlayed(e) ? "You played it" : "I played it"}</span></option>`;
+  const refund = `<option value="refund" title="Only for you; the game's status stays the same">${icon("receipt-refund")}<span class="st-label">${
+    iRefunded(e) ? "Undo my refund" : "I refunded it"}</span></option>`;
+  // Two labelled parts, so it's clear what changes the game for everyone and what only marks you
+  // (browsers without the stylable menu show the group's label attribute instead of its legend)
+  const group = (label, ico, hint, body) =>
+    `<optgroup label="${label}"><legend>${icon(ico)}${label}<span class="st-hint">${hint}</span></legend>${body}</optgroup>`;
+  return `<select class="status-pick" data-id="${e.id}" aria-label="Status of ${esc(e.title)}"
+    title="${esc(STATUS[e.status])}"><button><selectedcontent></selectedcontent></button>${
+    group("For everyone", "users", locked ? `${e.played_by.length} of us played it` : "same for all of us", options)}<hr>${
+    group("Just for you", "user", "others don't change", played + refund)}</select>`;
+}
+async function setRefund(e, refunded) {
+  const body = await api("/api/refund", { entry_id: e.id, refunded });
+  Object.assign(e, playedFields(body), { refunds: body.refunds });  // a refund counts as having played it
+}
+$("grid").addEventListener("change", async (ev) => {
+  const pick = ev.target.closest(".status-pick");
+  if (!pick) return;
+  const e = gameOf(pick), before = e.status, after = pick.value;
+  if (after === "played-me") {
+    pick.value = e.status;  // the menu keeps showing the group's status
+    const played = iSaidPlayed(e) ? null : true, was = iSaidNot(e) ? false : null;
+    try {
+      await setPlayed(e, played);
+      remember({ label: played ? `played ${e.title}` : `took back that you played ${e.title}`,
+                 redo: () => setPlayed(cur(e), played), undo: () => setPlayed(cur(e), played ? was : true) });
+      render();
+      toast(played ? `Marked that you played ${e.title} (${e.played_by.length} of ${PLAYERS_NEEDED})` : `Took back that you played ${e.title}`);
+    } catch (err) {
+      console.error(err);
+      toast("Couldn't save that — try again");
+    }
+    return;
+  }
+  if (after === "refund") {
+    pick.value = e.status;  // the menu keeps showing the group's status
+    const refunded = !iRefunded(e);
+    try {
+      await setRefund(e, refunded);
+      remember({ label: refunded ? `refunded ${e.title}` : `took back your refund of ${e.title}`,
+                 redo: () => setRefund(cur(e), refunded), undo: () => setRefund(cur(e), !refunded) });
+      render();
+      toast(refunded ? `Marked that you refunded ${e.title}` : `Took back your refund of ${e.title}`);
+    } catch (err) {
+      console.error(err);
+      toast("Couldn't save that — try again");
+    }
+    return;
+  }
+  // Show the new status right away; the save finishes in the background and is undone if it fails.
+  e.status = after;
+  render();
+  toast(`${e.title} → ${STATUS[after]}`);
+  saving++;
+  try {
+    await setStatus(e, after);
+    remember({ label: `${e.title} → ${STATUS[after]}`, redo: () => setStatus(cur(e), after), undo: () => setStatus(cur(e), before) });
+  } catch (err) {
+    console.error(err);
+    cur(e).status = before;
+    render();
+    toast(err.status === 400 && err.text ? err.text : "Couldn't change the status — try again");
+  } finally {
+    saving--;
+  }
+});
+
+// Notes are the message text, so Discord mentions arrive as <@id>; show them as @name.
+// Custom server emoji arrive as <:name:id> (<a:name:id> when animated); show them as the emoji picture.
+const noteHtml = (note) => esc(note)
+  .replace(/&lt;@!?(\d+)&gt;/g, (_, id) => `<b>@${esc(USERS[id]?.name || "someone")}</b>`)
+  .replace(/&lt;(a?):(\w+):(\d+)&gt;/g, (_, animated, name, id) =>
+    `<img class="emoji" src="${esc(imgUrl(`https://cdn.discordapp.com/emojis/${id}.${animated ? "gif" : "webp"}?size=48`))}" alt=":${name}:" title=":${name}:">`)
+  .replace(/&lt;#\d+&gt;/g, "#channel").replace(/&lt;@&amp;\d+&gt;/g, "@role");
+
+// Steam dates can be exact ("14 Jan, 2027") or vague ("Coming soon", "Q1 2027"); vague ones aren't out yet.
+const isUpcoming = (e) => e.release_ts ? e.release_ts > Date.now() / 1000 : !!e.release_date;
+const releaseText = (e) => !e.release_date ? ""
+  : isUpcoming(e) ? `<span class="soon">${icon("hourglass")}${e.release_ts ? "Releases " : ""}${esc(e.release_date)}</span>`
+  : `<span>${icon("calendar")}Released ${esc(e.release_date)}</span>`;
+
+
+// Steam's review colour: by the summary word when there is one, else by the score.
+const reviewTone = (e) => /negative/i.test(e.review_desc || "") ? "neg" : /mixed/i.test(e.review_desc || "") ? "mixed"
+  : /positive/i.test(e.review_desc || "") ? "pos" : e.review_pct >= 70 ? "pos" : e.review_pct >= 40 ? "mixed" : "neg";
+
+// Steam games open in the Steam app: a small page served by the bot hands the game to Steam (steam://), and shows
+// the store website if Steam doesn't take it. Inside Discord it needs the bot's public address to open in the browser.
+// Battle.net app codes (battlenet://<code> opens the game in the Battle.net app; the app logs them as "game family")
+const BNET_APPS = { "world of warcraft": "WoW", "world of warcraft: forever": "WoWF", "world of warcraft classic": "WoWC",
+                    "diablo iv": "Fen",
+                    "hearthstone": "WTCG", "heroes of the storm": "Hero", "starcraft ii": "S2", "overwatch": "Pro" };
+function gameLink(e) {
+  const app = e.kind === "steam" && /\/app\/(\d+)/.exec(e.url)?.[1];
+  const bnet = e.kind === "battlenet" && BNET_APPS[e.title.toLowerCase()];
+  if ((!app && !bnet) || !CONFIG.live || (IN_DISCORD && !CONFIG.publicUrl)) return e.url;  // no public address yet: the store page
+  const base = IN_DISCORD ? CONFIG.publicUrl : "";
+  return app ? `${base}/static/open-steam.html?app=${app}`
+    : `${base}/static/open-battlenet.html?app=${bnet}&name=${encodeURIComponent(e.title)}&web=${encodeURIComponent(e.url)}`;
+}
+
+// Top-right of the cover: Playing / the group's status, with "↩ 2" joined on when people refunded it
+function coverBadge(e) {
+  const status = e.players.length ? `<span class="badge playing">Playing</span>`
+    : BADGE[e.status] ? `<span class="badge ${e.status}">${BADGE[e.status]}</span>` : "";
+  if (!e.refunds.length) return status;
+  const refund = `<span class="badge refund" data-id="${e.id}" aria-label="Refunded by ${esc(e.refunds.map((p) =>
+    person(p.id, p.name).name).join(", "))}">${icon("receipt-refund")}${e.refunds.length}<span class="rf-word">&nbsp;refunded</span></span>`;
+  return `<span class="badge-split">${status}${refund}</span>`;
+}
+
+// Time left on a Steam sale, after the percentage: grey with a week or more to go, then amber, then red at the end
+const ENDS_COLORS = [[143, 163, 176], [240, 178, 50], [242, 71, 71]];  // grey, amber (rating stars), red
+function endsColor(k) {
+  const t = k * (ENDS_COLORS.length - 1), i = Math.min(Math.floor(t), ENDS_COLORS.length - 2), f = t - i;
+  return `rgb(${ENDS_COLORS[i].map((c, j) => Math.round(c + (ENDS_COLORS[i + 1][j] - c) * f)).join(",")})`;
+}
+function saleEnds(e) {
+  const h = (e.discount_ends * 1000 - Date.now()) / 36e5;
+  if (!e.discount_ends || h <= 0) return "";
+  const k = (1 - Math.min(h, 168) / 168) ** 2;  // 0 a week or more out, 1 at the very end
+  const left = h >= 48 ? `${Math.floor(h / 24)}d` : h >= 24 ? `1d ${Math.floor(h - 24)}h` : `${Math.max(1, Math.round(h))}h`;
+  const end = new Date(e.discount_ends * 1000);
+  const when = `${end.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}, ${
+    end.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`;
+  return `<span class="sale-end" style="--ends:${endsColor(k)}" title="Sale ends ${esc(when)}">${
+    icon("clock")}<span class="sale-left">${left}</span></span>`;
+}
+
+// -- A card's tags and people take one line each where they can: as many as fit, the rest behind a "+N" that lists
+// them (hover, or tap on phones). How many fit depends on the screen, so the sizes are measured on a hidden card
+// once per layout (every card in the grid is the same width), and each card then works out its own count. --
+let fit = null;
+const PEOPLE = { added: ["Added", "Added by"], playing: ["Playing", "Playing now"], played: ["Played", "Played by"],
+                 refunds: ["Refunded", "Refunded by"], wants: ["Wants", "Wants to play"] };
+// Who played it, minus anyone in the Playing pill right now (they still count towards Played)
+const playedNotPlaying = (e) => e.played_by.filter((id) => !e.players.some((p) => p.id === id)).map((id) => ({ id }));
+const OLD_PLAYED =`Marked Played before a game needed ${PLAYERS_NEEDED} players`;
+function measureFit() {
+  const grid = $("grid"), tags = [...new Set(DATA.flatMap(tagsOf))];
+  const pill = (label, faces, extra = "") => `<span class="pp"><span class="pp-l">${label}</span>${
+    `<span class="av"></span>`.repeat(faces)}${extra}</span>`;
+  const probe = document.createElement("article");
+  probe.className = "card fit-probe";
+  probe.innerHTML = `<div class="body"><div class="chips">${tags.map(chipHtml).join("")}<button class="chip chip-more">+8</button>
+    <button class="chip chip-more">+88</button></div><div class="foot"><div class="people">${
+    Object.values(PEOPLE).map(([l]) => pill(l, 0)).join("")}${pill("Played before the rule", 0)}${pill("x", 0)}${pill("x", 1)}${
+    pill("x", 2)}${pill("x", 1, `<span class="pp-old">${icon("clock")}</span>`)}${pill("x", 1, `<button class="pp-more">+8</button>`)}${
+    pill("x", 1, `<button class="pp-more">+88</button>`)}</div></div></div>`;
+  grid.append(probe);
+  const people = probe.querySelector(".people"), chips = probe.querySelector(".chips");
+  const w = (el) => el.getBoundingClientRect().width;
+  const pills = [...people.children].map(w), chipW = [...chips.children].map(w);
+  const keys = Object.keys(PEOPLE), at = keys.length;  // the test pills come after the labels
+  const next = {
+    people: people.clientWidth, chips: chips.clientWidth,
+    gap: parseFloat(getComputedStyle(people).columnGap) || 0, chipGap: parseFloat(getComputedStyle(chips).columnGap) || 0,
+    label: Object.fromEntries([...keys.map((k, i) => [k, pills[i]]), ["playedOld", pills[at]]]),
+    face: pills[at + 2] - pills[at + 1], step: pills[at + 3] - pills[at + 2], old: pills[at + 4] - pills[at + 2],
+    more: [pills[at + 5] - pills[at + 2], pills[at + 6] - pills[at + 2]],
+    tag: Object.fromEntries(tags.map((t, i) => [t, chipW[i]])), tagMore: chipW.slice(-2),
+  };
+  probe.remove();
+  if (next.people > 0) fit = next;  // hidden (the minimised poster): keep the last sizes
+}
+// Lines a row of pieces takes, wrapped like the browser wraps them
+function linesFor(widths, room, gap) {
+  let lines = 1, x = -gap;
+  for (const w of widths) { if (x > 0 && x + gap + w > room + .5) { lines++; x = w; } else x += gap + w; }
+  return lines;
+}
+// How many tags fit on one line, leaving room for the "+N"
+function tagsThatFit(tags) {
+  if (!fit) return tags.length;
+  const w = tags.map((t) => fit.tag[t] ?? 80), sum = (n) => w.slice(0, n).reduce((a, b) => a + b, 0) + fit.chipGap * Math.max(0, n - 1);
+  if (sum(tags.length) <= fit.chips + .5) return tags.length;
+  for (let n = tags.length - 1; n > 0; n--) {
+    if (sum(n) + fit.chipGap + fit.tagMore[tags.length - n > 9 ? 1 : 0] <= fit.chips + .5) return n;
+  }
+  return 0;
+}
+// How many faces each group shows: all of them if that doesn't take more lines than one face each would;
+// otherwise faces come off the biggest group first until it does
+function facesThatFit(groups) {
+  const shown = groups.map((g) => g.list.length);
+  if (!fit) return shown;
+  const width = (g, n) => fit.label[g.key] + (n ? fit.face + (n - 1) * fit.step : 0) + (g.old ? fit.old : 0)
+    + (n < g.list.length ? fit.more[g.list.length - n > 9 ? 1 : 0] : 0);
+  const lines = (counts) => linesFor(groups.map((g, i) => width(g, counts[i])), fit.people, fit.gap);
+  const fewest = lines(groups.map((g) => Math.min(1, g.list.length)));
+  while (lines(shown) > fewest) {
+    const i = shown.reduce((best, n, j) => n > 1 && (best < 0 || n > shown[best]) ? j : best, -1);
+    if (i < 0) break;
+    shown[i]--;
+  }
+  // Room left on the last line goes back to the groups, a face at a time each
+  for (let grew = true; grew;) {
+    grew = false;
+    shown.forEach((n, i) => {
+      if (n >= groups[i].list.length) return;
+      shown[i]++;
+      if (lines(shown) > fewest) shown[i]--; else grew = true;
+    });
+  }
+  return shown;
+}
+function peopleLine(e) {
+  const old = beforeRule(e);
+  const all = { added: e.added_by ? [{ id: e.added_by, name: e.added_by_name }] : [], playing: e.players,
+                played: playedNotPlaying(e), refunds: e.refunds, wants: e.interested };
+  const groups = Object.keys(PEOPLE).filter((k) => all[k].length || (k === "played" && old)).map((k) => ({
+    kind: k, list: all[k], key: k === "played" && old && !all[k].length ? "playedOld" : k, old: k === "played" && old && all[k].length > 0 }));
+  if (!e.added_by) groups.unshift({ kind: "added", list: [], key: "added", name: e.added_by_name || "someone" });
+  const shown = facesThatFit(groups);
+  return `<div class="people">${groups.map((g, i) => {
+    const hidden = g.list.length - shown[i];
+    return `<span class="pp"><span class="pp-l" title="${g.key === "playedOld" ? OLD_PLAYED : PEOPLE[g.kind][1]}">${
+      g.key === "playedOld" ? "Played before the rule" : PEOPLE[g.kind][0]}</span>${g.name ? `<span class="pp-name">${esc(g.name)}</span>` : ""}${
+      g.old ? `<span class="pp-old" title="${OLD_PLAYED}">${icon("clock")}</span>` : ""}${
+      g.list.slice(0, shown[i]).map((p) => avatar(p.id, p.name)).join("")}${hidden ? `<button class="pp-more" data-id="${e.id}"
+      data-list="${g.kind}" aria-label="${hidden} more">+${hidden}</button>` : ""}</span>`;
+  }).join("")}</div>`;
+}
+// A new layout (window size, cards per row) or new tags: measure again, and redraw if anything moved
+const fitKey = () => fit && JSON.stringify([fit.people, fit.chips, fit.face, fit.label]);
+function refit() {
+  const was = fitKey();
+  measureFit();
+  if (fitKey() !== was) render();
+}
+let fitWidth = 0, fitTimer;
+new ResizeObserver(([en]) => {
+  if (Math.abs(en.contentRect.width - fitWidth) < 1) return;  // a taller grid is no new layout
+  fitWidth = en.contentRect.width;
+  clearTimeout(fitTimer);
+  fitTimer = setTimeout(refit, 120);
+}).observe($("grid"));
+
+function card(e) {
+  const meta = [
+    e.discount_pct && e.price_full_text  // on sale: shown like Steam shows it
+      ? `<span class="sale" title="On sale on Steam"><span class="sale-prices"><s>${esc(e.price_full_text)}</s>
+          <span>${esc(e.price_text)}</span></span><span class="sale-pct">−${e.discount_pct}%</span>${saleEnds(e)}</span>`
+      : e.price_text && `<span class="price">${esc(e.price_text)}</span>`,
+    e.review_pct != null && `<span class="rev ${reviewTone(e)}">${e.review_pct}% ${esc(e.review_desc || "")}</span>`,
+    e.coop ? `<span>${icon("users")}Co-op</span>` : e.multiplayer && `<span>${icon("users-group")}Multiplayer</span>`,
+    releaseText(e),
+  ].filter(Boolean).join("");
+  const tags = tagsOf(e), fitTags = tagsThatFit(tags);
+  const chips = tags.slice(0, fitTags).map(chipHtml).join("") + (fitTags < tags.length
+    ? `<button class="chip chip-more" data-id="${e.id}" data-list="tags" aria-label="${tags.length - fitTags} more tags">+${tags.length - fitTags}</button>` : "");
+  // Reels of the game: just the film icon, one per clip, above the line
+  const clips = e.clips.map((u, i) => `<a class="clip" href="${esc(u)}" target="_blank" rel="noopener"
+    title="Watch clip${e.clips.length > 1 ? ` ${i + 1}` : ""}" aria-label="Watch clip ${i + 1}">${icon("movie")}</a>`).join("");
+  // Loaded when it nears the screen; a cover that was already shown is drawn right away, so redraws don't blink
+  const img = !e.image ? "" : shownCovers.has(imgUrl(e.image)) ? `style="background-image:url('${esc(imgUrl(e.image))}')"`
+    : `data-bg="${esc(imgUrl(e.image))}"`;
+  return `<article class="card" id="g${e.id}">
+    <a class="img" href="${esc(gameLink(e))}" target="_blank" rel="noopener" ${img}>
+      ${isUpcoming(e) ? `<span class="badge upcoming">Not released</span>` : ""}
+      ${coverBadge(e)}
+      ${e.ratings.length ? `<span class="rating-pill" data-id="${e.id}" aria-label="${esc(ratersTitle(e))}">${
+        icon("star")}${avgRating(e).toFixed(1)}<span>· ${e.ratings.length}</span>${
+        e.ratings.some((r) => r.played) ? playedBadge(e.ratings.filter((r) => r.played).length) : ""}</span>` : ""}</a>
+    <div class="body">
+      <a class="title" href="${esc(gameLink(e))}" target="_blank" rel="noopener">${esc(e.title)}</a>
+      <div class="meta">${meta}</div>
+      ${chips && `<div class="chips">${chips}</div>`}
+      ${clips && `<div class="clips">${clips}</div>`}
+      ${CAN_WANT && (["played", "demo"].includes(e.status) || iPlayed(e)) ? rateRow(e) : ""}
+      ${e.kind === "instagram" ? `<div class="meta"><span>${icon("help-circle")}Reel not linked to a game yet</span></div>` : ""}
+      ${e.note ? `<div class="note">“${noteHtml(e.note)}”</div>` : ""}
+      <div class="foot">
+        ${peopleLine(e)}
+        ${CAN_WANT ? `<div class="actions">${wantButton(e)}
+          <div class="card-tools">${playButton(e)}${pingButton(e)}${statusPick(e)}</div></div>` : ""}
+      </div>
+    </div>
+  </article>`;
+}
+
+// Covers are only fetched once their card comes near the screen: opening the catalog then loads a dozen
+// pictures instead of all ~500
+const shownCovers = new Set();
+const covers = new IntersectionObserver((entries) => entries.forEach((en) => {
+  if (!en.isIntersecting) return;
+  en.target.style.backgroundImage = `url('${en.target.dataset.bg}')`;
+  shownCovers.add(en.target.dataset.bg);
+  covers.unobserve(en.target);
+}), { rootMargin: "800px 0px" });
+
+// Drawing all ~560 cards takes the browser over half a second, and the page redraws after every click and every
+// change anyone makes. So only the parts that changed are swapped; a different order or set of games (a new
+// search, sort or filter) draws the grid anew.
+let drawnParts = [];
+function drawGrid(parts) {
+  const grid = $("grid");
+  const changed = parts.length === drawnParts.length && grid.children.length === parts.length
+    ? parts.map((p, i) => p === drawnParts[i] ? -1 : i).filter((i) => i >= 0) : null;
+  if (!changed || changed.length > 40) {
+    grid.innerHTML = parts.join("");
+  } else {
+    const tpl = document.createElement("template");
+    changed.forEach((i) => { tpl.innerHTML = parts[i]; grid.children[i].replaceWith(tpl.content.firstElementChild); });
+  }
+  drawnParts = parts;
+  grid.querySelectorAll("[data-bg]").forEach((el) => covers.observe(el));
+}
+
+function render() {
+  const q = $("q").value.trim().toLowerCase(), st = $("status").value;
+  // "Refunded" shows every game at least one of us refunded
+  const statusOk = (e) => st === "refunded" ? e.refunds.length > 0
+    : !st || st === "mine" || e.status === st || (st === "want" && e.status === "demo");
+  $("status-mine").hidden = !me;  // "Games I want to play": the games you said yes to (needs you signed in)
+  const sort = SORTS[$("sort").value];
+  queueMicrotask(() => { $("count").textContent = `${$("grid").querySelectorAll(".card").length} games`; });
+  const rows = DATA.filter((e) =>
+    (!q || [e.title, e.note, e.description, ...tagsOf(e)].some((s) => (s || "").toLowerCase().includes(q))) &&
+    (!picked.size || [...picked].every((t) => tagsOf(e).includes(t))) && statusOk(e) && (st !== "mine" || isMine(e)) &&
+    (!personFilter || PERSON_FILTERS[personFilter.kind].ok(e, personFilter.id, personFilter.stars))
+  ).sort(sort);  // games being played keep their badge and the feed above, but sort like the rest
+  $("person").hidden = !personFilter;
+  if (personFilter) {
+    const f = PERSON_FILTERS[personFilter.kind];
+    $("person").innerHTML = `${icon(f.icon)}<span class="person-name">${esc(f.chip(shortName(personFilter.id), personFilter.stars))}</span>
+      <button type="button" id="person-clear" title="Show everyone's games" aria-label="Show everyone's games">${icon("x")}</button>`;
+  }
+  if (!fit || DATA.some((e) => tagsOf(e).some((t) => !(t in fit.tag)))) {  // first draw, or a new tag
+    measureFit();
+    setTimeout(refit);  // and once more with the games in, in case the page settled differently
+  }
+  // The grid's parts (cards and section headings), each one element
+  let parts;
+  if ($("sort").value === "release") {
+    // Unreleased games get their own section after the released ones, soonest release first.
+    const soon = rows.filter(isUpcoming).sort((a, b) => nullsLast(a.release_ts, b.release_ts, () => a.release_ts - b.release_ts));
+    const out = rows.filter((e) => !isUpcoming(e));
+    parts = [...(soon.length && out.length ? [section(`${icon("calendar")} Released`, out.length)] : []), ...out.map(card),
+             ...(soon.length ? [section(`${icon("hourglass")} Not released yet`, soon.length), ...soon.map(card)] : [])];
+  } else if ($("sort").value === "sale") {
+    // Games on sale first (biggest discount first), then the rest
+    const onSale = rows.filter((e) => e.discount_pct), full = rows.filter((e) => !e.discount_pct);
+    parts = [...(onSale.length ? [section(`${icon("discount")} On sale`, onSale.length)] : []), ...onSale.map(card),
+             ...(onSale.length && full.length ? [section("Full price", full.length)] : []), ...full.map(card)];
+  } else {
+    parts = rows.map(card);
+  }
+  drawGrid(rows.length ? parts : [`<div class="empty">No games match.</div>`]);
+  renderCatchUp();
+  // Games 2 or more of us played in the past week (the server keeps the week), latest first
+  const playing = DATA.filter((e) => e.recent.length >= 2).sort((a, b) => b.recent[0].at - a.recent[0].at);
+  // Not played yet and wanted by two or more people
+  const together = DATA.filter((e) => ["want", "demo"].includes(e.status) && e.interest >= 2).length;
+  const top = DATA.filter((e) => ["want", "demo"].includes(e.status)).sort((a, b) => b.interest - a.interest)[0];
+  const played = DATA.filter((e) => e.status === "played").length;
+  // Top scouts: who added the most games (not the bot's free-game posts)
+  const added = {};
+  DATA.forEach((e) => { if (e.added_by && e.added_by !== CONFIG.clientId) added[e.added_by] = (added[e.added_by] || 0) + 1; });
+  const scouts = Object.entries(added).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const podium = (place) => {
+    if (!scouts[place - 1]) return "";
+    const [id, count] = scouts[place - 1], name = person(id).name;
+    const short = name.split(/\s+[(#/|]/)[0];  // "HAZELNUT (Pillcraftian #67)" -> "HAZELNUT"; full name on hover
+    return `<span class="podium p${place}">${avatar(id, name)}<span class="podium-name" title="${esc(name)}">${esc(short)}</span>
+      <span class="num neon">${count}</span><span class="lbl">${place === 1 ? "games added" : "added"}</span></span>`;
+  };
+  $("stats").innerHTML = `
+    <div class="score"><span class="num neon">${played}</span>
+      <span class="lbl">${played === 1 ? "game" : "games"} played together</span></div>
+    <div class="score"><span class="num neon">${together}</span>
+      <span class="lbl">${together === 1 ? "game" : "games"} people want to play together</span></div>
+    ${top?.interest ? `<button class="score top" data-id="${top.id}" title="Show ${esc(top.title)}"
+        style="${top.image ? `--cover:url('${esc(imgUrl(top.image))}')` : ""}">
+      <span class="top-text"><span class="lbl">Most wanted</span><span class="top-title">${esc(top.title)}</span>
+        <span class="stack">${top.interested.slice(0, 5).map((p) => avatar(p.id, p.name)).join("")}${
+          top.interested.length > 5 ? `<span class="more">+${top.interested.length - 5}</span>` : ""}</span></span>
+      <span class="top-count"><span class="num neon">${top.interest}</span><span class="lbl">want to play</span></span>
+    </button>` : ""}
+    ${scouts.length ? `<div class="score scout"><span class="scout-head">Top scouts</span>
+      <span class="podiums">${podium(2)}${podium(1)}${podium(3)}</span></div>` : ""}`;
+  $("mini-playing").textContent = playing.length ? $("now-head").textContent + ": " + playing.map((e) => e.title).join(" · ") : "";
+  $("now").hidden = !playing.length;
+  $("now-track").innerHTML = playing.map((e) => `<button class="now-item" data-id="${e.id}" title="Show ${esc(e.title)}">
+      <span class="now-img" style="${e.image ? `background-image:url('${esc(imgUrl(e.image))}')` : ""}">
+        <span class="now-people">${e.recent.slice(0, 6).map((p) => avatar(p.id)).join("")}${
+          e.recent.length > 6 ? `<span class="more">+${e.recent.length - 6}</span>` : ""}</span>
+      </span>
+      <span class="now-body">
+        <span class="now-title">${esc(e.title)}</span>
+        <span class="now-count"><i></i>${e.players.length ? `${e.players.length} playing now` : `${e.recent.length} played this week`}</span>
+      </span>
+    </button>`).join("");
+  updateNowNav();
+}
+
+// Clicking a game in the "Playing now" feed jumps to its card (clearing filters if they hide it).
+function jumpToGame(id) {
+  let target = $("g" + id);
+  if (!target) {
+    $("q").value = ""; $("status").value = ""; picked.clear(); personFilter = null; buildGenres();
+    render();
+    target = $("g" + id);
+  }
+  target.scrollIntoView({ behavior: "smooth", block: "center" });
+  target.classList.add("flash");
+  setTimeout(() => target.classList.remove("flash"), 1600);
+}
+const cleanTitle = (t) => t.replace(/[™®©]/g, "").trim();
+function rotationGames() {
+  const playing = DATA.filter((e) => e.players.length);
+  const wanted = DATA.filter((e) => ["want", "demo"].includes(e.status) && e.interest)
+    .sort((a, b) => b.interest - a.interest).slice(0, 8);
+  return [...new Map([...playing, ...wanted].map((e) => [e.id, e])).values()];
+}
+let rotIndex = -1;
+function rotateTitle() {
+  const games = rotationGames(), el = $("rot");
+  rotIndex = (rotIndex + 1) % (games.length + 1);
+  const game = games[rotIndex];  // past the last game: plain "next"
+  el.textContent = game ? cleanTitle(game.title) : "next";
+  el.dataset.id = game ? game.id : "";
+  el.title = game ? `Show ${game.title}` : "";
+  // the minimised poster shows the same name
+  for (const t of [el, $("mini-rot")]) {
+    if (t !== el) t.textContent = el.textContent;
+    t.classList.remove("swap");
+    void t.offsetWidth;  // restart the slide-in animation
+    t.classList.add("swap");
+  }
+  fitMiniName();
+}
+// On the small poster a long name ("Call of Duty: Modern Warfare 4") gets smaller to fit its line, down to
+// half size, instead of being cut off; only past that does the "…" kick in
+function fitMiniName() {
+  const line = $("mini-rot").parentElement;
+  line.style.fontSize = "";
+  if (!line.clientWidth || line.scrollWidth <= line.clientWidth) return;  // poster hidden, or it fits
+  line.style.fontSize = Math.max(0.5, line.clientWidth / line.scrollWidth * 0.98) + "em";
+}
+addEventListener("resize", fitMiniName);
+if (!matchMedia("(prefers-reduced-motion: reduce)").matches) setInterval(rotateTitle, 2200);
+$("rot").addEventListener("click", () => { if ($("rot").dataset.id) jumpToGame($("rot").dataset.id); });
+$("stats").addEventListener("click", (ev) => {
+  const top = ev.target.closest(".score.top");
+  if (top && !ev.target.closest(".av")) jumpToGame(top.dataset.id);  // avatars open their profile instead
+});
+// Server badge: its icon, or its first letter when it has none
+if (CONFIG.guildIcon) $("server-icon").outerHTML = `<img class="server-icon" src="${esc(imgUrl(CONFIG.guildIcon))}" alt="">`;
+else $("server-icon").textContent = "__GUILD__".trim().charAt(0).toUpperCase();
+// Arrows beside the heading scroll the feed a card at a time; hidden when everything fits.
+function updateNowNav() {
+  const t = $("now-track"), max = t.scrollWidth - t.clientWidth;
+  $("now-nav").hidden = max <= 4;
+  $("now-prev").disabled = t.scrollLeft <= 4;
+  $("now-next").disabled = t.scrollLeft >= max - 4;
+}
+for (const [id, dir] of [["now-prev", -1], ["now-next", 1]])
+  $(id).addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    const t = $("now-track");
+    t.scrollBy({ left: dir * Math.max(264, t.clientWidth - 264), behavior: "smooth" });
+  });
+$("now-track").addEventListener("scroll", updateNowNav, { passive: true });
+addEventListener("resize", updateNowNav);
+$("now").addEventListener("click", (ev) => {
+  const item = ev.target.closest(".now-item");
+  if (item && !ev.target.closest(".av")) jumpToGame(item.dataset.id);
+});
+pop.addEventListener("click", (ev) => {
+  const game = ev.target.closest(".pf-game");
+  if (game) { hideProfile(); jumpToGame(game.dataset.id); }
+});
+const section = (title, n) => `<h2 class="section">${title} <span>${n}</span></h2>`;
+
+// Looking at "Want to play"? Then put the games most people want first (the sort can still be changed after).
+$("status").addEventListener("input", () => {
+  const st = $("status").value;
+  if (st === "want") $("sort").value = "interest";
+  if (st === "played" || st === "demo") $("sort").value = "ours";  // the games you've played, best rated first
+  if (st === "refunded") $("sort").value = "refunds";  // the games most of us refunded first
+});
+["q", "sort", "status"].forEach((id) => $(id).addEventListener("input", render));
+// Cards per row: each viewer's own choice, remembered in this browser
+function applyCols() {
+  $("grid").style.setProperty("--cols", $("cols").value || 99);
+  $("cols").parentElement.title = `Cards per row: ${$("cols").selectedOptions[0].text.toLowerCase()}`;
+  try { localStorage.setItem("catalog-cols", $("cols").value); } catch {}
+}
+try { $("cols").value = localStorage.getItem("catalog-cols") || ""; } catch {}
+applyCols();
+$("cols").addEventListener("input", () => { applyCols(); refit(); });
+document.querySelectorAll("[data-icon]").forEach((el) => { el.outerHTML = icon(el.dataset.icon); });
+// "Looking for …": the search box suggests real things to search for, a few most-wanted games and popular tags
+function searchIdeas() {
+  const games = rotationGames().slice(0, 4).map((e) => cleanTitle(e.title));
+  const counts = {};
+  DATA.forEach((e) => [...e.tags, ...e.genres].forEach((t) => (counts[t] = (counts[t] || 0) + 1)));
+  const tags = Object.keys(counts).sort((a, b) => counts[b] - counts[a]).slice(3, 7).map((t) => t.toLowerCase());
+  return games.flatMap((g, i) => [g, tags[i]]).filter(Boolean);
+}
+let ideaIndex = 0;
+function nextIdea() {
+  const ideas = searchIdeas();
+  if (ideas.length) $("q").placeholder = `${ideas[ideaIndex++ % ideas.length]}…`;
+}
+nextIdea();
+if (!matchMedia("(prefers-reduced-motion: reduce)").matches) setInterval(nextIdea, 2600);
+// Press "/" anywhere (not while typing) to jump to the search box
+addEventListener("keydown", (ev) => {
+  if (ev.key !== "/" || ev.ctrlKey || ev.metaKey || ev.target.closest("input, textarea, select")) return;
+  ev.preventDefault();
+  $("q").focus();
+});
+$("genre-list").addEventListener("change", (ev) => {
+  ev.target.checked ? picked.add(ev.target.value) : picked.delete(ev.target.value);
+  genreLabel();
+  render();
+});
+$("genre-q").addEventListener("input", findGenre);
+// The menu opens under its button, kept inside the screen. The sticky bar's blur makes the bar,
+// not the screen, what a fixed element is placed against, so positions are relative to the bar.
+function placeGenre() {
+  if (!$("genre").open) return;
+  const panel = $("genre").querySelector(".multi-panel"), r = $("genre-label").getBoundingClientRect();
+  const bar = $("genre").closest(".bar").getBoundingClientRect();
+  const left = Math.max(16, Math.min(r.left, document.documentElement.clientWidth - 16 - panel.offsetWidth));
+  panel.style.top = r.bottom + 6 - bar.top + "px";
+  panel.style.left = left - bar.left + "px";
+}
+$("genre").addEventListener("toggle", placeGenre);
+addEventListener("resize", placeGenre);
+$("genre-clear").addEventListener("click", () => { picked.clear(); buildGenres(); render(); });
+$("person").addEventListener("click", (ev) => { if (ev.target.closest("#person-clear")) setPersonFilter(null); });
+document.addEventListener("click", (ev) => { if ($("genre").open && !$("genre").contains(ev.target)) $("genre").open = false; });
+// Clicking a tag on a card ticks it too
+$("grid").addEventListener("click", (ev) => {
+  const tag = ev.target.closest(".chip")?.dataset.tag;
+  if (tag) { picked.add(tag); buildGenres(); render(); window.scrollTo({ top: 0, behavior: "smooth" }); }
+});
+buildGenres();
+render();
+
+if (CONFIG.live) {
+  // Stay live: a tiny version number is checked every few seconds and the data is only reloaded when it
+  // changed (someone posted, pressed a button, changed a status). Filters and search are kept.
+  // A reload waits while your own changes are being saved, and is dropped if one was saved while it downloaded
+  // (it may hold your old answer): the next check loads it again. One check at a time, even on a slow connection.
+  let version = null, checking = false;
+  setInterval(async () => {
+    if (document.hidden || menuInUse() || checking) return;  // don't redraw under an open menu
+    if (redrawWaiting) renderWhenFree();
+    checking = true;
+    try {
+      const v = (await (await fetch("/version")).json()).v;
+      if ((version !== null && v !== version) || reloadNow) {
+        const seq = saveCount;
+        const res = await fetch("/data.json" + location.search);
+        if (!res.ok) return;
+        const body = await res.json();
+        if (saving || seq !== saveCount) return;
+        ({ games: DATA, users: USERS } = body);
+        reloadNow = false;
+        buildGenres();
+        renderWhenFree();
+      }
+      version = v;
+    } catch {
+    } finally {
+      checking = false;
+    }
+  }, 3000);
+}
+
+if (IN_DISCORD) {
+  // Running inside Discord as an Activity: say hello to Discord, and open links in the real browser.
+  try {
+    const { DiscordSDK } = await import("/static/discord-sdk.mjs");
+    sdk = new DiscordSDK(CONFIG.clientId);
+    await sdk.ready();
+    // Minimised (picture-in-picture) or tiled in a call grid: show the compact poster instead of the full page.
+    sdk.subscribe("ACTIVITY_LAYOUT_MODE_UPDATE", ({ layout_mode }) => {
+      const was = isMini();
+      document.body.classList.toggle("mini", layout_mode === 1 || layout_mode === 2);
+      fitMiniName();
+      if (was && !isMini()) restoreScroll();
+    })
+      .catch((err) => console.warn("No layout updates", err));
+    // Sign in right away so the buttons show which games you already want (asks for permission only once).
+    if (CAN_WANT) signIn().then(() => { renderWhenFree(); activityTip(); }).catch((err) => console.warn("Not signed in yet", err));
+    document.addEventListener("click", async (ev) => {
+      const a = ev.target.closest("a[href^='http']");
+      if (!a) return;
+      ev.preventDefault();
+      // A Steam game: first ask Discord to hand steam:// straight to the Steam app (no browser tab at all);
+      // if Discord won't open that kind of link, go through the hand-off page in the browser instead.
+      const app = /open-steam\.html\?app=(\d+)/.exec(a.href)?.[1];
+      if (app) {
+        try {
+          const { opened } = await sdk.commands.openExternalLink({ url: `steam://store/${app}` });
+          if (opened !== false) return;
+        } catch (err) {
+          console.warn("Discord won't open steam:// links, using the browser", err);
+        }
+      }
+      sdk.commands.openExternalLink({ url: a.href });
+    });
+  } catch (err) { console.error("Discord SDK failed", err); }
+}
+</script>
+</body>
+</html>

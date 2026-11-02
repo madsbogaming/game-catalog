@@ -1,0 +1,18 @@
+# Secrets
+.env
+
+# The catalog and its backups hold people's Discord IDs, Steam IDs and playtime: never commit them
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Logs
+*.log
+
+# Python
+.venv/
+__pycache__/
+
+# Downloaded tools (cloudflared.exe is 55 MB and Windows-only)
+tools/*.exe

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Opening in Battle.net</title>
+<!-- Opens a game in the Battle.net app (battlenet://), falling back to its web page if Battle.net doesn't take it.
+     Used as /static/open-battlenet.html?app=<Battle.net game code, e.g. WoW>&web=<its shop page or site>.
+     A copy of open-steam.html with Battle.net's link and wording. -->
+<style>
+  :root { color-scheme:dark; }
+  body { margin:0; min-height:100vh; display:grid; place-items:center; background:#141518; color:#ececef;
+    font:15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; text-align:center; }
+  main { padding:24px 16px; max-width:420px; }
+  h1 { font-size:22px; margin:0 0 6px; }
+  p { color:#9a9ba3; margin:0 0 16px; }
+  a { color:#8d96ff; }
+  button { font:inherit; padding:9px 16px; border:0; border-radius:8px; background:#5865f2; color:#fff; cursor:pointer; }
+  [hidden] { display:none; }
+  .spin { width:28px; height:28px; margin:0 auto 14px; border-radius:50%; border:3px solid #2d2f35; border-top-color:#8d96ff;
+    animation:spin 1s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spin { animation:none; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="spin" id="spin"></div>
+  <h1 id="title">Opening in Battle.net…</h1>
+  <p id="text">If your browser asks, choose to open Battle.net.</p>
+  <p id="choice" hidden><button id="close">Found it, close this tab</button></p>
+  <p><a id="web" href="https://shop.battle.net/">Open the game's page in the browser instead</a></p>
+</main>
+<script>
+  const params = new URLSearchParams(location.search);
+  const app = (params.get("app") || "").replace(/[^A-Za-z0-9]/g, "");
+  const game = (params.get("name") || "").slice(0, 80) || "the game";
+  // Only Blizzard's own pages, so this can't be used to send people anywhere else
+  const asked = (() => { try { return new URL(params.get("web") || ""); } catch { return null; } })();
+  const web = asked && asked.protocol === "https:" && /(^|\.)(battle\.net|blizzard\.com)$/.test(asked.hostname)
+    ? asked.href : "https://shop.battle.net/";
+  document.getElementById("web").href = web;
+  const $ = (id) => document.getElementById(id);
+  // Close this tab. Chrome, Edge, Brave and Opera allow it for a tab opened from another app or a link;
+  // Firefox and Safari may refuse, so then just say Battle.net opened.
+  function closeTab() {
+    window.close();
+    setTimeout(() => {
+      $("spin")?.remove();
+      $("choice").hidden = true;
+      $("title").textContent = "Opened in Battle.net";
+      $("text").textContent = "You can close this tab.";
+    }, 300);
+  }
+  $("close").addEventListener("click", closeTab);
+  if (app) {
+    const started = Date.now();
+    location.href = `battlenet://${app}`;
+    // The page can only tell what happened from its focus:
+    // - focus lost right away (< 0.4 s): the browser is asking "Open Battle.net?";
+    //     Open -> focus comes back, then Battle.net takes it -> close;
+    // - focus lost a bit later, or after the question was answered: Battle.net took over -> close;
+    // - otherwise (Cancel, or Battle.net opened quietly behind the browser, or isn't installed) the page can't
+    //   tell which, so it asks with two buttons rather than opening the web page on top of Battle.net.
+    let state = "waiting", answered;
+    // Battle.net that's already running switches to the game but stays behind other windows (it never brings
+    // itself forward for a link, and the page can't do it for it), so say where to find it.
+    function ask() {
+      state = "unsure";  // a later blur (Battle.net came forward after all) still closes the tab
+      $("spin")?.remove();
+      $("title").textContent = `Battle.net is on ${game}`;
+      $("text").textContent = "Already had Battle.net open? It switched in the background: click Battle.net in your " +
+        "taskbar to see it. Don't have Battle.net? Open the game's page below.";
+      $("choice").hidden = false;
+    }
+    addEventListener("blur", () => {
+      if (state === "waiting" && Date.now() - started < 400) { state = "asking"; return; }
+      if (state === "done") return;
+      clearTimeout(answered);
+      state = "done";
+      closeTab();
+    });
+    addEventListener("focus", () => {
+      if (state !== "asking") return;
+      state = "answered";
+      answered = setTimeout(ask, 1500);
+    });
+    setTimeout(() => { if (state === "waiting") ask(); }, 2500);
+  } else {
+    location.replace(web);
+  }
+</script>
+</body>
+</html>
