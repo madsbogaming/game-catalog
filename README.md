@@ -9,13 +9,13 @@ Your friends post games in Discord. The bot turns them into one catalog everyone
 
 ## Why your server needs it
 
-- 🔗 **Just post a link.** Steam, Battle.net or an Instagram reel. The bot fills in price, reviews, tags and co-op modes for you.
-- 🎮 **See what everyone wants.** One click says "I want to play this", and the most wanted games rise to the top.
-- 🎲 **Can't decide?** `/random` picks tonight's game, favoring what most of you want.
-- 📣 **Get the squad together.** "Ping to play" calls everyone who wants that game in one click.
-- 💸 **Never miss a deal.** Free-to-keep Steam games and 70%+ sales on your list are posted automatically.
-- 🏆 **Earn achievements** for adding games, playing together and more (some are secret).
-- 🤝 **Only games you can play together.** Singleplayer and couch-only games are turned away, so the list stays useful.
+- **Just post a link.** Steam, Battle.net or an Instagram reel. The bot fills in price, reviews, tags and co-op modes for you.
+- **See what everyone wants.** One click says "I want to play this", and the most wanted games rise to the top.
+- **Can't decide?** `/random` picks tonight's game, favoring what most of you want.
+- **Get the squad together.** "Ping to play" calls everyone who wants that game in one click.
+- **Never miss a deal.** Free-to-keep Steam games and 70%+ sales on your list are posted automatically.
+- **Earn achievements** for adding games, playing together and more (some are secret).
+- **Only games you can play together.** Singleplayer and couch-only games are turned away, so the list stays useful.
 
 ## Up and running in 10 minutes
 
