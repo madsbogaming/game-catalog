@@ -45,7 +45,7 @@ The catalog page works in your browser at <http://127.0.0.1:8765>. You only need
    ```bash
    git switch -c better-random-picks
    ```
-3. **Change the code and try it** with your test bot.
+3. **Change the code and try it** with your test bot, and run the unit tests with `.venv\Scripts\python -m unittest`.
 4. **Commit and push your branch:**
    ```bash
    git add -A

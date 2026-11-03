@@ -20,20 +20,23 @@ import sources
 import gotg
 from catalog_html import render_catalog
 from db import PLAYERS_NEEDED, STATUSES, Database
+from guilds import POSTS, Defaults, Settings, parse_channel, parse_ids
 from web import CatalogSite
 
 load_dotenv()
 TOKEN = os.environ.get("DISCORD_TOKEN", "")
+# The home server: the .env settings below are its defaults (each server can change its own with /setup)
 GUILD_ID = int(os.getenv("GUILD_ID") or 0)
-WATCH_CHANNELS = {int(c) for c in os.getenv("WATCH_CHANNEL_IDS", "").replace(" ", "").split(",") if c}
+WATCH_CHANNELS = parse_ids(os.getenv("WATCH_CHANNEL_IDS"))
 # The only channels (and threads) the bot reads at all: the watched ones plus these. Messages anywhere else are
 # ignored, even when Discord lets the bot see them.
-READ_CHANNELS = WATCH_CHANNELS | {int(c) for c in os.getenv("READ_CHANNEL_IDS", "").replace(" ", "").split(",") if c}
+READ_CHANNELS = parse_ids(os.getenv("READ_CHANNEL_IDS"))
 STEAM_COUNTRY = os.getenv("STEAM_COUNTRY", "us")
 DB_PATH = os.getenv("DB_PATH", "catalog.db")
 INTEREST_EMOJI = os.getenv("INTEREST_EMOJI", "🎮")
-# Discord user IDs allowed to use every command (others only get /catalog, /random and /link)
-ADMIN_IDS = {int(u) for u in (os.getenv("ADMIN_IDS") or os.getenv("REMOVE_ALLOWED_IDS", "")).replace(" ", "").split(",") if u}
+# Discord user IDs allowed to use every command in the home server (others only get /catalog, /random and /link).
+# They also get the bot's DMs about its public address.
+ADMIN_IDS = set(parse_ids(os.getenv("ADMIN_IDS") or os.getenv("REMOVE_ALLOWED_IDS")))
 WEB_PORT = int(os.getenv("WEB_PORT") or 8765)
 PUBLIC_TUNNEL = os.getenv("PUBLIC_TUNNEL", "true").lower() in ("1", "true", "yes")
 # A fixed public address for the catalog (e.g. Tailscale Funnel). When set, no Cloudflare tunnel is started.
@@ -43,33 +46,39 @@ STEAM_API_KEY = os.getenv("STEAM_API_KEY", "").strip()
 TRACK_MINUTES = 5  # how often the bot counts who's playing what in Discord (each look adds this much time)
 PLAYING_GRACE_MINUTES = 10  # a "Playing" mark the bot set goes this long after Discord and Steam stop showing the game
 REFUND_MAX_MINUTES = 120  # Steam refunds only games played less than 2 hours
-# Where free-to-keep Steam games are posted (default: the first watched channel; 0 turns it off)
-FREE_GAMES_CHANNEL_ID = int(os.getenv("FREE_GAMES_CHANNEL_ID") or next(iter(WATCH_CHANNELS), 0))
-# Weekly post of catalog games on deep discount: where, when (day 0 = Monday, local time) and how deep
-DEALS_CHANNEL_ID = int(os.getenv("DEALS_CHANNEL_ID") or FREE_GAMES_CHANNEL_ID)
+# The home server's channels for the bot's own posts (each server can pick its own with /setup; 0 turns them off).
+# Free-to-keep Steam games (default: the first watched channel)
+FREE_GAMES_CHANNEL_ID = parse_channel(os.getenv("FREE_GAMES_CHANNEL_ID"))
+# Weekly post of catalog games on deep discount: where (default: with the free games), when (day 0 = Monday, local
+# time) and how deep
+DEALS_CHANNEL_ID = parse_channel(os.getenv("DEALS_CHANNEL_ID"))
 DEALS_DAY = int(os.getenv("DEALS_DAY") or 3)  # Thursday: Steam's weekly deals start then
 DEALS_HOUR = int(os.getenv("DEALS_HOUR") or 19)
 DEALS_MIN_DISCOUNT = int(os.getenv("DEALS_MIN_DISCOUNT") or 70)
 DEALS_MIN_WANT = 3  # games this many people want to play are listed first, with their cover
 DEALS_MAX = 20
 CATCH_UP_REACTIONS = timedelta(days=7)  # on startup, 🎮 reactions on game posts this recent are re-read
-# Where new achievements are announced (default: the first watched channel; 0 turns them off)
-ACHIEVEMENTS_CHANNEL_ID = int(os.getenv("ACHIEVEMENTS_CHANNEL_ID") or next(iter(WATCH_CHANNELS), 0))
+# Where new achievements are announced (default: the first watched channel)
+ACHIEVEMENTS_CHANNEL_ID = parse_channel(os.getenv("ACHIEVEMENTS_CHANNEL_ID"))
 ACHIEVEMENT_PING_GAP = 24 * 3600  # one achievement message per person per day at most; more wait and go in one
 # Where the bot asks once for help sorting out who played the Played games (default: the achievements channel), and
 # the day after which Played games still short of players simply keep their spot. A reminder goes out 3 days before.
-PLAYED_RULE_CHANNEL_ID = int(os.getenv("PLAYED_RULE_CHANNEL_ID") or ACHIEVEMENTS_CHANNEL_ID)
+# Only in servers that had Played games before the rule.
+PLAYED_RULE_CHANNEL_ID = parse_channel(os.getenv("PLAYED_RULE_CHANNEL_ID"))
 PLAYED_RULE_DEADLINE = int(datetime.strptime(os.getenv("PLAYED_RULE_DEADLINE") or "2026-11-15", "%Y-%m-%d")
                            .replace(hour=23, minute=59).timestamp())
 CATCH_UP_PAGE = 5  # games per "Have you played these?" message (Discord allows 40 parts in one)
 # "Get on the game" (#GOTG): the daily post of games to play together tonight (gotg.py), when (local time) and where.
 # Without GOTG_CHANNEL_ID it goes in the channel named GOTG_CHANNEL_NAME; posting starts no later than GOTG_LATEST_HOUR
 # (if the bot was off at GOTG_TIME), and its "I'm in" buttons last until midnight.
-GOTG_CHANNEL_ID = int(os.getenv("GOTG_CHANNEL_ID") or 0)
+GOTG_CHANNEL_ID = parse_channel(os.getenv("GOTG_CHANNEL_ID"))
 GOTG_CHANNEL_NAME = os.getenv("GOTG_CHANNEL_NAME", "madsbo-wacky-gamerweekend")
 GOTG_TIME = datetime.strptime(os.getenv("GOTG_TIME") or "16:30", "%H:%M").time()
 GOTG_LATEST_HOUR = 20
 BADGES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "badges")
+DEFAULTS = Defaults(home_guild=GUILD_ID, watch=WATCH_CHANNELS, read=READ_CHANNELS, admins=ADMIN_IDS, posts={
+    "free_games": FREE_GAMES_CHANNEL_ID, "deals": DEALS_CHANNEL_ID, "achievements": ACHIEVEMENTS_CHANNEL_ID,
+    "played_rule": PLAYED_RULE_CHANNEL_ID, "gotg": GOTG_CHANNEL_ID})
 
 log = logging.getLogger("gamebot")
 Choice = app_commands.Choice
@@ -231,7 +240,7 @@ class ReelGameButton(ui.DynamicItem[ui.Button], template=r"reel-game:(?P<reel>\d
         if not reel or reel["kind"] != "instagram":
             await interaction.message.edit(view=None)
             return await interaction.response.send_message("That reel is already linked to a game.", ephemeral=True)
-        is_admin = interaction.user.id in ADMIN_IDS if ADMIN_IDS else interaction.permissions.manage_messages
+        is_admin = bot.settings.is_admin(interaction.guild_id, interaction.user.id, interaction.permissions.manage_messages)
         if interaction.user.id != reel["added_by"] and not is_admin:
             return await interaction.response.send_message(f"Only {reel['added_by_name']} (who posted it) can answer.",
                                                            ephemeral=True)
@@ -415,6 +424,7 @@ class GameBot(commands.Bot):
         super().__init__(command_prefix=commands.when_mentioned, intents=intents,
                          allowed_mentions=discord.AllowedMentions.none())
         self.db = Database(DB_PATH)
+        self.settings = Settings(self.db, DEFAULTS, self.channel_guild)  # each server's channels and admins
         self._titles: dict[int, tuple[float, dict[str, int]]] = {}  # guild -> (built at, normalized title -> entry id)
         self._catching_up = False
         self._connected = False  # to Discord right now (the heartbeat only counts that time as "online")
@@ -432,16 +442,14 @@ class GameBot(commands.Bot):
         self.add_dynamic_items(CheckPlayedButton, PlayedAnswerButton)  # "Have you played these?"
         self.add_dynamic_items(GotgInButton)  # "I'm in" on the #GOTG posts
         await self.site.start()
-        if FREE_GAMES_CHANNEL_ID:
-            self.post_free_games.start()
+        # These run for every server; a server whose channel for them is turned off is skipped
+        self.post_free_games.start()
         self.refresh_prices.start()
         self.refresh_all_playtime.start()
         self.steam_now_playing.start()
         self.track_playtime.start()
-        if DEALS_CHANNEL_ID:
-            self.post_deals.start()
-        if ACHIEVEMENTS_CHANNEL_ID:
-            self.check_achievements.start()
+        self.post_deals.start()
+        self.check_achievements.start()
         self.played_rule.start()
         self.post_gotg.start()
         if PUBLIC_URL:  # fixed address: nothing to start, and the Activity URL mapping never changes
@@ -449,12 +457,12 @@ class GameBot(commands.Bot):
             log.info("Public catalog URL: %s", PUBLIC_URL)
         elif PUBLIC_TUNNEL:
             asyncio.create_task(self.share_tunnel())
-        if GUILD_ID:  # guild commands show up instantly; global ones can take a while
-            guild = discord.Object(GUILD_ID)
-            self.tree.copy_global_to(guild=guild)
-            await self.tree.sync(guild=guild)
-        else:
-            await self.tree.sync()
+        # Global commands, so every server the bot is in gets them. Older versions gave the home server its own copies
+        # (they showed up faster); those are cleared, or the home server would list every command twice.
+        await self.tree.sync()
+        if GUILD_ID:
+            self.tree.clear_commands(guild=discord.Object(GUILD_ID))
+            await self.tree.sync(guild=discord.Object(GUILD_ID))
 
     async def share_tunnel(self):
         """Start the public tunnel and DM the admins its address, which changes on every start
@@ -477,14 +485,30 @@ class GameBot(commands.Bot):
             await self.web.close()
         await super().close()
 
-    @staticmethod
-    def may_read(channel) -> bool:
-        """Only READ_CHANNELS, and threads inside the watched channels."""
-        return channel.id in READ_CHANNELS or getattr(channel, "parent_id", None) in WATCH_CHANNELS
+    def channel_guild(self, channel_id: int) -> int | None:
+        """The server a channel or thread is in (None: the bot can't see it)."""
+        guild = getattr(self.get_channel(channel_id), "guild", None)
+        return guild.id if guild else None
+
+    def may_read(self, channel) -> bool:
+        """Only the server's read channels, and threads inside its watched channels."""
+        guild = getattr(channel, "guild", None)
+        return bool(guild) and self.settings.may_read(guild.id, channel.id, getattr(channel, "parent_id", None))
 
     def watches(self, channel) -> bool:
-        return self.may_read(channel) and (channel.id in WATCH_CHANNELS
-                                           or getattr(channel, "parent_id", None) in WATCH_CHANNELS)
+        guild = getattr(channel, "guild", None)
+        return self.may_read(channel) and self.settings.watches(guild.id, channel.id, getattr(channel, "parent_id", None))
+
+    def post_channel(self, guild: discord.Guild, kind: str):
+        """The channel in `guild` for its `kind` posts (see guilds.POSTS), or None when they're turned off."""
+        channel_id = self.settings.post_channel(guild.id, kind)
+        if channel_id is None:  # #GOTG without a channel set: the one with its usual name
+            return discord.utils.get(guild.text_channels, name=GOTG_CHANNEL_NAME)
+        channel = self.get_channel(channel_id) if channel_id else None
+        return channel if channel and channel.guild.id == guild.id else None
+
+    def sync_members(self, guild: discord.Guild):
+        self.db.set_members(guild.id, [m.id for m in guild.members if not m.bot])
 
     # -- archiving --
 
@@ -497,16 +521,16 @@ class GameBot(commands.Bot):
         if not meta:
             log.info("Turned away unknown Steam app %s", appid)
             raise not_on_steam(appid)
-        if appid not in self.allowed_apps():  # games an admin let through with /allow skip the rules
+        if appid not in self.allowed_apps(guild_id):  # games the server's admin let through with /allow skip the rules
             check_real_game(appid, meta)
             check_playable_online(appid, meta)
         return self.add_steam(guild_id, appid, meta, origin), True
 
-    def allowed_apps(self) -> set[int]:
-        return set(json.loads(self.db.get_meta("allowed_apps") or "[]"))
+    def allowed_apps(self, guild_id: int) -> set[int]:
+        return set(json.loads(self.db.get_guild_meta(guild_id, "allowed_apps") or "[]"))
 
-    def allow_app(self, appid: int):
-        self.db.set_meta("allowed_apps", json.dumps(sorted(self.allowed_apps() | {appid})))
+    def allow_app(self, guild_id: int, appid: int):
+        self.db.set_guild_meta(guild_id, "allowed_apps", json.dumps(sorted(self.allowed_apps(guild_id) | {appid})))
 
     def add_steam(self, guild_id: int, appid: int, meta: dict, origin: dict) -> dict:
         entry = self.db.insert(guild_id, key=f"steam:{appid}", kind="steam",
@@ -607,15 +631,23 @@ class GameBot(commands.Bot):
             log.exception("Free game check failed")
 
     async def _post_free_games(self):
-        """Post Steam games that are 100% off (free to keep), once each, in the free-games channel."""
-        channel = self.get_channel(FREE_GAMES_CHANNEL_ID)
-        if channel is None:
+        """Post Steam games that are 100% off (free to keep), once each, in every server's free-games channel."""
+        channels = [c for c in (self.post_channel(g, "free_games") for g in self.guilds) if c]
+        if not channels:
             return
+        free, metas = await sources.find_free_games(self.web, STEAM_COUNTRY), {}
+        for channel in channels:
+            await self._post_free_games_in(channel, free, metas)
+
+    async def _post_free_games_in(self, channel, free: list[int], metas: dict):
+        """The free games not posted in `channel`'s server yet. `metas`: Steam info already fetched (for any server)."""
         now = int(time.time())
-        for appid in await sources.find_free_games(self.web, STEAM_COUNTRY):
+        for appid in free:
             if self.db.free_posted_since(channel.guild.id, appid, now - 30 * 86400):
                 continue
-            meta = await sources.fetch_steam(self.web, appid, STEAM_COUNTRY)
+            if appid not in metas:
+                metas[appid] = await sources.fetch_steam(self.web, appid, STEAM_COUNTRY)
+            meta = metas[appid]
             if not meta or not meta["_giveaway"]:
                 continue
             self.db.mark_free_posted(channel.guild.id, appid, now)
@@ -666,23 +698,28 @@ class GameBot(commands.Bot):
                                                                                    microsecond=0)
             if due > now:
                 due -= timedelta(days=7)
-            last = self.db.get_meta("deals_posted")
-            if last is None:  # just switched on: start with next week's, rather than posting right away
-                self.db.set_meta("deals_posted", due.date().isoformat())
-                return
-            if last == due.date().isoformat():
-                return
-            channel = self.get_channel(DEALS_CHANNEL_ID)
-            if channel is None:
-                return
-            await self.refresh_prices()  # fresh prices, so no sale that just ended is listed
-            self.db.set_meta("deals_posted", due.date().isoformat())
-            wanted, others = self.deals(channel.guild.id)
-            if not wanted and not others:
-                log.info("No deep discounts this week")
-                return
-            await channel.send(view=DealsView(wanted, others))
-            log.info("Posted %d deep discounts (%d most wanted)", len(wanted) + len(others), len(wanted))
+            refreshed = False
+            for guild in self.guilds:
+                last = self.db.get_guild_meta(guild.id, "deals_posted")
+                if last is None:  # just switched on: start with next week's, rather than posting right away
+                    self.db.set_guild_meta(guild.id, "deals_posted", due.date().isoformat())
+                    continue
+                if last == due.date().isoformat():
+                    continue
+                channel = self.post_channel(guild, "deals")
+                if channel is None:
+                    continue
+                if not refreshed:
+                    await self.refresh_prices()  # fresh prices, so no sale that just ended is listed
+                    refreshed = True
+                self.db.set_guild_meta(guild.id, "deals_posted", due.date().isoformat())
+                wanted, others = self.deals(guild.id)
+                if not wanted and not others:
+                    log.info("No deep discounts this week in %s", guild.name)
+                    continue
+                await channel.send(view=DealsView(wanted, others))
+                log.info("Posted %d deep discounts (%d most wanted) in %s", len(wanted) + len(others), len(wanted),
+                         guild.name)
         except Exception:
             log.exception("Weekly deals post failed")
 
@@ -697,30 +734,36 @@ class GameBot(commands.Bot):
         """Record newly earned achievements and announce them. The very first run records what everyone had
         already earned without a word, then posts the launch message once. After that each person gets at
         most one message a day; anything else they earn waits and goes into that one message."""
-        try:
-            first = not self.db.get_meta("achievements_started")
-            achievements.sync(self.db, self.user.id, silent=first)
-            if first:
-                self.db.set_meta("achievements_started", int(time.time()))
-                log.info("Achievements started: what people had already earned was recorded without messages")
-            channel = self.get_channel(ACHIEVEMENTS_CHANNEL_ID)
-            if channel is None:
-                return
-            if not self.db.get_meta("achievements_launch_posted"):
-                await channel.send(view=achievements_launch_view(), files=[badge_file("launch.png")])
-                self.db.set_meta("achievements_launch_posted", int(time.time()))
-                log.info("Posted the achievements launch message")
-            now = time.time()
-            for uid, items in self.db.unannounced().items():
-                if now - float(self.db.get_meta(f"achievement_ping:{uid}") or 0) < ACHIEVEMENT_PING_GAP:
+        for guild in self.guilds:
+            try:
+                channel = self.post_channel(guild, "achievements")
+                if channel is None:  # turned off in this server
                     continue
-                view, files = achievement_view(uid, items)
-                await channel.send(view=view, files=files, allowed_mentions=discord.AllowedMentions(users=[discord.Object(uid)]))
-                self.db.mark_announced(uid, [key for key, _ in items])
-                self.db.set_meta(f"achievement_ping:{uid}", int(now))
-                log.info("Announced %d achievement(s) for %s", len(items), uid)
-        except Exception:
-            log.exception("Couldn't check achievements")
+                await self.check_achievements_in(guild, channel)
+            except Exception:
+                log.exception("Couldn't check achievements in %s", guild.name)
+
+    async def check_achievements_in(self, guild: discord.Guild, channel):
+        gid = guild.id
+        first = not self.db.get_guild_meta(gid, "achievements_started")
+        achievements.sync(self.db, self.user.id, gid, silent=first)
+        if first:
+            self.db.set_guild_meta(gid, "achievements_started", int(time.time()))
+            log.info("Achievements started in %s: what people had already earned was recorded without messages",
+                     guild.name)
+        if not self.db.get_guild_meta(gid, "achievements_launch_posted"):
+            await channel.send(view=achievements_launch_view(gid), files=[badge_file("launch.png")])
+            self.db.set_guild_meta(gid, "achievements_launch_posted", int(time.time()))
+            log.info("Posted the achievements launch message in %s", guild.name)
+        now = time.time()
+        for uid, items in self.db.unannounced(gid).items():
+            if now - float(self.db.get_guild_meta(gid, f"achievement_ping:{uid}") or 0) < ACHIEVEMENT_PING_GAP:
+                continue
+            view, files = achievement_view(gid, uid, items)
+            await channel.send(view=view, files=files, allowed_mentions=discord.AllowedMentions(users=[discord.Object(uid)]))
+            self.db.mark_announced(gid, uid, [key for key, _ in items])
+            self.db.set_guild_meta(gid, f"achievement_ping:{uid}", int(now))
+            log.info("Announced %d achievement(s) for %s in %s", len(items), uid, guild.name)
 
     @check_achievements.before_loop
     async def _achievements_wait(self):
@@ -742,28 +785,37 @@ class GameBot(commands.Bot):
         games (the post's progress line is kept up to date), and remind them once 3 days before the deadline."""
         try:
             self.promote_played()
-            channel = self.get_channel(PLAYED_RULE_CHANNEL_ID)
-            if channel is None:
-                return
-            progress, promoted = self.played_rule_state(channel.guild.id)
-            post = self.db.get_meta("played_rule_post")
-            state = f"{progress[0]}:{progress[1]}:{len(promoted)}"
-            if not post:
-                message = await channel.send(view=played_rule_view(progress, promoted))
-                self.db.set_meta("played_rule_post", message.id)
-                self.db.set_meta("played_rule_progress", state)
-                log.info("Posted the Played rule announcement (%d of %d Played games have %d players)",
-                         *progress, PLAYERS_NEEDED)
-            elif self.db.get_meta("played_rule_progress") != state:
-                await channel.get_partial_message(int(post)).edit(view=played_rule_view(progress, promoted))
-                self.db.set_meta("played_rule_progress", state)
-            left = progress[1] - progress[0]
-            if left and 0 < PLAYED_RULE_DEADLINE - time.time() < 3 * 86400 and not self.db.get_meta("played_rule_reminded"):
-                await channel.send(view=played_rule_reminder_view(left))
-                self.db.set_meta("played_rule_reminded", int(time.time()))
-                log.info("Posted the Played rule reminder (%d games short of players)", left)
         except Exception:
             log.exception("Couldn't check the Played rule")
+        before = self.db.played_before_rule()
+        for guild in self.guilds:
+            try:
+                # The posts explain a change to games that were already Played: servers that had none skip them
+                channel = self.post_channel(guild, "played_rule")
+                if channel is None or not any(e["id"] in before for e in self.db.query(guild.id, status="played")):
+                    continue
+                await self.played_rule_in(guild.id, channel)
+            except Exception:
+                log.exception("Couldn't post the Played rule in %s", guild.name)
+
+    async def played_rule_in(self, gid: int, channel):
+        progress, promoted = self.played_rule_state(gid)
+        post = self.db.get_guild_meta(gid, "played_rule_post")
+        state = f"{progress[0]}:{progress[1]}:{len(promoted)}"
+        if not post:
+            message = await channel.send(view=played_rule_view(progress, promoted))
+            self.db.set_guild_meta(gid, "played_rule_post", message.id)
+            self.db.set_guild_meta(gid, "played_rule_progress", state)
+            log.info("Posted the Played rule announcement in %s (%d of %d Played games have %d players)",
+                     channel.guild.name, *progress, PLAYERS_NEEDED)
+        elif self.db.get_guild_meta(gid, "played_rule_progress") != state:
+            await channel.get_partial_message(int(post)).edit(view=played_rule_view(progress, promoted))
+            self.db.set_guild_meta(gid, "played_rule_progress", state)
+        left = progress[1] - progress[0]
+        if left and 0 < PLAYED_RULE_DEADLINE - time.time() < 3 * 86400 and not self.db.get_guild_meta(gid, "played_rule_reminded"):
+            await channel.send(view=played_rule_reminder_view(left))
+            self.db.set_guild_meta(gid, "played_rule_reminded", int(time.time()))
+            log.info("Posted the Played rule reminder in %s (%d games short of players)", channel.guild.name, left)
 
     def played_rule_state(self, guild_id: int) -> tuple[tuple[int, int], list[str]]:
         """What the Played rule post shows: (Played games with enough players, all Played games), and the games
@@ -779,41 +831,39 @@ class GameBot(commands.Bot):
 
     # -- Get on the game (#GOTG) --
 
-    def gotg_channel(self):
-        if GOTG_CHANNEL_ID:
-            return self.get_channel(GOTG_CHANNEL_ID)
-        guild = self.get_guild(GUILD_ID) or next(iter(self.guilds), None)
-        return discord.utils.get(guild.text_channels, name=GOTG_CHANNEL_NAME) if guild else None
-
     @tasks.loop(minutes=5)
     async def post_gotg(self):
-        """Every day at GOTG_TIME: the #GOTG post (once a day; later the same day if the bot was off then)."""
-        try:
-            now = datetime.now()
-            day = now.date().isoformat()
-            if now.time() < GOTG_TIME or now.hour >= GOTG_LATEST_HOUR or self.db.gotg_post(day):
-                return
-            channel = self.gotg_channel()
-            if channel is None:
-                log.warning("No #GOTG channel: set GOTG_CHANNEL_ID, or name a channel %s", GOTG_CHANNEL_NAME)
-                return
-            picks = gotg_picks(channel.guild.id, now.date())
-            if not picks:
-                self.db.save_gotg_post(day, channel.guild.id, [])
-                log.info("No games for #GOTG today")
-                return
-            self.db.save_gotg_post(day, channel.guild.id, picks)  # saved first: never posted twice
-            message = await channel.send(view=gotg_view(day))
-            self.db.save_gotg_post(day, channel.guild.id, picks, channel.id, message.id)
-            log.info("Posted #GOTG: %s", ", ".join(self.db.get(eid)["title"] for eid, _ in picks))
-        except Exception:
-            log.exception("#GOTG post failed")
+        """Every day at GOTG_TIME: each server's #GOTG post (once a day; later the same day if the bot was off then)."""
+        now = datetime.now()
+        day = now.date().isoformat()
+        if now.time() < GOTG_TIME or now.hour >= GOTG_LATEST_HOUR:
+            return
+        for guild in self.guilds:
+            try:
+                if self.db.gotg_post(guild.id, day):
+                    continue
+                channel = self.post_channel(guild, "gotg")
+                if channel is None:  # turned off, or no channel with its usual name (noted at startup)
+                    continue
+                picks = gotg_picks(guild.id, now.date())
+                if not picks:
+                    self.db.save_gotg_post(guild.id, day, [])
+                    log.info("No games for #GOTG today in %s", guild.name)
+                    continue
+                self.db.save_gotg_post(guild.id, day, picks)  # saved first: never posted twice
+                message = await channel.send(view=gotg_view(guild.id, day))
+                self.db.save_gotg_post(guild.id, day, picks, channel.id, message.id)
+                log.info("Posted #GOTG in %s: %s", guild.name, ", ".join(self.db.get(eid)["title"] for eid, _ in picks))
+            except Exception:
+                log.exception("#GOTG post failed in %s", guild.name)
 
     @post_gotg.before_loop
     async def _gotg_wait(self):
         await self.wait_until_ready()
-        channel = self.gotg_channel()
-        log.info("#GOTG posts at %s in %s", f"{GOTG_TIME:%H:%M}", f"#{channel.name}" if channel else "no channel (not found)")
+        for guild in self.guilds:
+            channel = self.post_channel(guild, "gotg")
+            log.info("#GOTG posts at %s in %s: %s", f"{GOTG_TIME:%H:%M}", guild.name, f"#{channel.name}" if channel else
+                     f"off (pick a channel with /setup post, or name one {GOTG_CHANNEL_NAME})")
         await asyncio.sleep(120)  # after the startup catch-up and the first Steam libraries
 
     async def ensure_battlenet(self, guild_id: int, key: str, url: str, origin: dict) -> tuple[dict, bool]:
@@ -966,9 +1016,13 @@ class GameBot(commands.Bot):
     # -- events --
 
     async def on_ready(self):
-        log.info("Logged in as %s — watching %s", self.user,
-                 ", ".join(map(str, WATCH_CHANNELS)) if WATCH_CHANNELS else "all channels")
+        log.info("Logged in as %s, in %d server(s)", self.user, len(self.guilds))
         self._connected = True
+        for guild in self.guilds:
+            self.sync_members(guild)  # who joined or left while the bot was offline
+            watched = self.settings.watch_channels(guild.id)
+            log.info("%s: watching %s", guild.name, ", ".join(map(str, watched)) if watched else
+                     "no channels yet (an admin can pick them with /setup watch)")
         # Games people started while the bot was offline (or restarting) never send a "started" update
         for guild in self.guilds:
             for member in guild.members:
@@ -983,6 +1037,23 @@ class GameBot(commands.Bot):
                 self._catching_up = False
             if not self.heartbeat.is_running():
                 self.heartbeat.start()
+
+    async def on_guild_join(self, guild: discord.Guild):
+        """Added to another server: it gets its own empty catalog, and watches nothing until its admins run /setup."""
+        log.info("Joined %s (%s)", guild.name, guild.id)
+        self.sync_members(guild)
+
+    async def on_guild_remove(self, guild: discord.Guild):
+        """Its catalog is kept (in case the bot is added back), but its people no longer count as members."""
+        log.info("Left %s (%s)", guild.name, guild.id)
+        self.db.set_members(guild.id, [])
+
+    async def on_member_join(self, member: discord.Member):
+        if not member.bot:
+            self.db.add_member(member.guild.id, member.id)
+
+    async def on_raw_member_remove(self, payload: discord.RawMemberRemoveEvent):
+        self.db.remove_member(payload.guild_id, payload.user.id)
 
     async def on_disconnect(self):
         self._connected = False
@@ -1007,7 +1078,7 @@ class GameBot(commands.Bot):
         posted_since = datetime.fromtimestamp(int(last_seen) - 60, timezone.utc)
         reacted_since = min(posted_since, discord.utils.utcnow() - CATCH_UP_REACTIONS)
         archived = reactions = 0
-        for channel_id in WATCH_CHANNELS:
+        for channel_id in [c for guild in self.guilds for c in self.settings.watch_channels(guild.id)]:
             channel = self.get_channel(channel_id)
             if channel is None:
                 continue
@@ -1041,7 +1112,10 @@ class GameBot(commands.Bot):
     async def tag_to_play(self, entry: dict, sender: discord.Member, targets: list[discord.abc.Snowflake]):
         """Someone pressed "Tag" on a profile, or "Ping everyone" on a game, in the catalog:
         ping those people in the game's channel."""
-        channel = self.get_channel(entry["channel_id"] or 0) or self.get_channel(FREE_GAMES_CHANNEL_ID)
+        guild = self.get_guild(entry["guild_id"])
+        channel = self.get_channel(entry["channel_id"] or 0) or (guild and self.post_channel(guild, "free_games"))
+        if channel is None:
+            raise RuntimeError(f"No channel to ping in for {entry['title']}")
         # Who's asking first, then the people asked on a line of their own, so the two can't be mixed up
         text = (f"{sender.mention} wants to play **{entry['title']}** and is asking you to join:\n"
                 f"{' · '.join(f'<@{t.id}>' for t in targets)}")
@@ -1246,13 +1320,15 @@ class NotAdmin(app_commands.CheckFailure):
     pass
 
 
+async def is_admin(interaction: discord.Interaction) -> bool:
+    """The server's admins (set with /setup admin, or ADMIN_IDS in .env for the home server; mods if there are none)."""
+    if not bot.settings.is_admin(interaction.guild_id, interaction.user.id, interaction.permissions.manage_messages):
+        raise NotAdmin()
+    return True
+
+
 def admin_only(func):
-    """Only the bot's admins (ADMIN_IDS in .env, or mods if that's empty) can use this; regular members don't see it."""
-    async def is_admin(interaction: discord.Interaction) -> bool:
-        allowed = interaction.user.id in ADMIN_IDS if ADMIN_IDS else interaction.permissions.manage_messages
-        if not allowed:
-            raise NotAdmin()
-        return True
+    """Only the server's admins can use this; regular members don't see it."""
     return app_commands.default_permissions(manage_messages=True)(app_commands.check(is_admin)(func))
 
 
@@ -1271,13 +1347,13 @@ def badge_file(name: str) -> discord.File:
     return discord.File(os.path.join(BADGES_DIR, name), filename=name)
 
 
-def achievement_view(uid: int, items: list[tuple[str, int]]) -> tuple[ui.LayoutView, list[discord.File]]:
-    """One message for everything `uid` earned since their last one, each with its badge on the right."""
+def achievement_view(guild_id: int, uid: int, items: list[tuple[str, int]]) -> tuple[ui.LayoutView, list[discord.File]]:
+    """One message for everything `uid` earned in the server since their last one, each with its badge on the right."""
     parts = []  # (what happened, its name, the detail line, badge picture, colour)
     for key, tier in items:
         if key == achievements.TITLE.key:
-            count = next((n for u, n, _ in achievements.refund_counts(bot.db.conn) if u == uid), 0)
-            prev, _, held = (bot.db.get_meta("refund_title_from") or ":0").partition(":")
+            count = next((n for u, n, _ in achievements.refund_counts(bot.db.conn, guild_id) if u == uid), 0)
+            prev, _, held = (bot.db.get_guild_meta(guild_id, "refund_title_from") or ":0").partition(":")
             detail = f"{count} refunds" + (f", more than <@{prev}>'s {held}, who held it until now"
                                            if prev and int(prev) != uid else "")
             parts.append(("is now the", "**Biggest refunder**", detail, "biggest_refunder.png", achievements.TITLE_COLOR))
@@ -1297,13 +1373,13 @@ def achievement_view(uid: int, items: list[tuple[str, int]]) -> tuple[ui.LayoutV
     return view, [badge_file(badge) for *_, badge, _ in parts]
 
 
-def achievements_launch_view() -> ui.LayoutView:
-    """The one-time post when achievements go live. Pings nobody (the bot's default)."""
+def achievements_launch_view(guild_id: int) -> ui.LayoutView:
+    """The one-time post when achievements go live in a server. Pings nobody (the bot's default)."""
     lines = ["Earn them by adding games, playing catalog games together, and more. Some are secret. "
              "You've already earned some."]
-    holder = bot.db.get_meta("refund_title")
+    holder = bot.db.get_guild_meta(guild_id, "refund_title")
     if holder:
-        count = next((n for u, n, _ in achievements.refund_counts(bot.db.conn) if u == int(holder)), 0)
+        count = next((n for u, n, _ in achievements.refund_counts(bot.db.conn, guild_id) if u == int(holder)), 0)
         lines.append(f"<@{holder}> holds the **Biggest refunder** title with {count} refunds. Refund more than that to take it.")
     lines.append("Hover anyone's avatar in the catalog to see their achievements and the scores they've given. "
                  "New ones are announced here.")
@@ -1469,9 +1545,9 @@ def gotg_line(e: dict, group: str, ins: list[int], owners: dict[int, set[int]]) 
     return line
 
 
-def gotg_view(day: str) -> ui.LayoutView:
-    """The #GOTG post of `day`, with who's in so far (redrawn on every "I'm in"). Pings nobody."""
-    post, owners = bot.db.gotg_post(day), bot.db.owners()
+def gotg_view(guild_id: int, day: str) -> ui.LayoutView:
+    """The server's #GOTG post of `day`, with who's in so far (redrawn on every "I'm in"). Pings nobody."""
+    post, owners = bot.db.gotg_post(guild_id, day), bot.db.owners(guild_id)
     over = day != date.today().isoformat()
     items: list[ui.Item] = [ui.TextDisplay(
         "## Get on the game #GOTG\nWho's up for a game tonight? Press **I'm in** on the ones you'd play. Once "
@@ -1493,9 +1569,9 @@ def gotg_view(day: str) -> ui.LayoutView:
     return view
 
 
-def gotg_press(day: str, entry_id: int, user) -> tuple[str | None, list[int]]:
-    """`user` pressed "I'm in" (again = out). When that makes PLAYERS_TO_PING, the first time for this game today:
-    (the message pinging the others who own it or want it, who to ping). Otherwise (None, [])."""
+def gotg_press(guild_id: int, day: str, entry_id: int, user) -> tuple[str | None, list[int]]:
+    """`user` pressed "I'm in" (again = out) on the server's #GOTG. When that makes PLAYERS_TO_PING, the first time for
+    this game today: (the message pinging the others who own it or want it, who to ping). Otherwise (None, [])."""
     ins = bot.db.gotg_in(day, entry_id)
     joining = user.id not in ins
     bot.db.set_gotg_in(day, entry_id, user.id, joining, int(time.time()))
@@ -1506,10 +1582,10 @@ def gotg_press(day: str, entry_id: int, user) -> tuple[str | None, list[int]]:
     if not joining or len(ins) < gotg.PLAYERS_TO_PING or bot.db.get_meta(pinged):
         return None, []
     bot.db.set_meta(pinged, int(time.time()))
-    group = dict(bot.db.gotg_post(day)["picks"]).get(entry_id)
+    group = dict(bot.db.gotg_post(guild_id, day)["picks"]).get(entry_id)
     others = {uid for uid, _ in bot.db.interested(entry_id)}
     if group == "owned":
-        others |= bot.db.owners().get(gotg.appid(entry), set())
+        others |= bot.db.owners(guild_id).get(gotg.appid(entry), set())
     others = sorted(others - set(ins))
     text = (f"**{len(ins)} of you are in for {entry['title']} tonight:** " + " · ".join(f"<@{uid}>" for uid in ins)
             + ("\nJoin them: " +" · ".join(f"<@{uid}>" for uid in others) if others else ""))
@@ -1530,13 +1606,14 @@ class GotgInButton(ui.DynamicItem[ui.Button], template=r"gotg:(?P<day>\d{4}-\d{2
         return cls(match["day"], int(match["entry"]))
 
     async def callback(self, interaction: discord.Interaction):
-        post = bot.db.gotg_post(self.day)
+        gid = interaction.guild_id or 0
+        post = bot.db.gotg_post(gid, self.day)
         if self.day != date.today().isoformat() or not post or self.entry_id not in dict(post["picks"]):
             await interaction.response.send_message(
                 f"This #GOTG is over. A new one comes at {GOTG_TIME:%H:%M}.", ephemeral=True)
             return
-        text, ping = gotg_press(self.day, self.entry_id, interaction.user)
-        await interaction.response.edit_message(view=gotg_view(self.day))
+        text, ping = gotg_press(gid, self.day, self.entry_id, interaction.user)
+        await interaction.response.edit_message(view=gotg_view(gid, self.day))
         if text:
             await interaction.message.reply(text, allowed_mentions=discord.AllowedMentions(
                 users=[discord.Object(uid) for uid in ping]), mention_author=False)
@@ -1628,10 +1705,10 @@ async def allow(interaction: discord.Interaction, game: str):
     appid = await find_appid(game)
     if not appid:
         return await interaction.followup.send(f"Couldn't find “{game}” on Steam.")
-    bot.allow_app(appid)
-    # Credit whoever posted it first in the watched channels; nobody did -> the admin
+    bot.allow_app(interaction.guild_id, appid)
+    # Credit whoever posted it first in the server's watched channels; nobody did -> the admin
     first = None
-    for channel_id in WATCH_CHANNELS:
+    for channel_id in bot.settings.watch_channels(interaction.guild_id):
         channel = bot.get_channel(channel_id)
         if channel:
             async for msg in channel.history(limit=None, oldest_first=True):
@@ -1779,7 +1856,8 @@ async def backfill(interaction: discord.Interaction, channel: discord.TextChanne
     channel = channel or interaction.channel
     if not bot.may_read(channel):
         return await interaction.response.send_message(
-            "I only read the watched channels, #builders and the feedback thread.", ephemeral=True)
+            "I only read the channels picked with `/setup watch` and `/setup read`. See them with `/setup show`.",
+            ephemeral=True)
     await interaction.response.defer(thinking=True)
     messages = [m async for m in channel.history(limit=limit)]
     messages.reverse()  # oldest first, so "added by" goes to whoever posted it first
@@ -1804,6 +1882,88 @@ async def backfill(interaction: discord.Interaction, channel: discord.TextChanne
         await interaction.followup.send(summary)
     except discord.HTTPException:  # the reply window closes after 15 minutes; long scans post in the channel
         await interaction.channel.send(summary)
+
+
+# -- /setup: each server's own channels and admins (guilds.py) -----------------
+
+setup = app_commands.Group(name="setup", description="Pick the channels the bot reads and posts in, and its admins",
+                           guild_only=True, default_permissions=discord.Permissions(manage_messages=True))
+bot.tree.add_command(setup)
+POST_CHOICES = [Choice(name=label, value=key) for key, label in POSTS.items()]
+
+
+def mention_channel(channel_id: int | None) -> str:
+    return f"<#{channel_id}>" if channel_id else "off"
+
+
+def setup_summary(guild: discord.Guild) -> str:
+    s, gid = bot.settings, guild.id
+    watched = s.watch_channels(gid)
+    extra = s.read_channels(gid) - set(watched)
+    lines = ["## Bot setup for this server",
+             "**Game links from:** " + (" ".join(map(mention_channel, watched)) or "no channels yet: use `/setup watch`"),
+             "**Also reads:** " + (" ".join(map(mention_channel, sorted(extra))) or "nothing else")]
+    for key, label in POSTS.items():
+        channel = bot.post_channel(guild, key)
+        lines.append(f"**{label}:** " + (channel.mention if channel else "off"))
+    admins = s.admins(gid)
+    lines.append("**Admins:** " + (" ".join(f"<@{u}>" for u in sorted(admins)) if admins
+                                   else "everyone with Manage Messages"))
+    return "\n".join(lines)
+
+
+@setup.command(name="show", description="Show which channels the bot uses here, and who its admins are")
+@app_commands.check(is_admin)
+async def setup_show(interaction: discord.Interaction):
+    await interaction.response.send_message(setup_summary(interaction.guild), ephemeral=True)
+
+
+@setup.command(name="watch", description="Put game links posted in a channel into the catalog (or stop)")
+@app_commands.check(is_admin)
+@app_commands.describe(channel="The channel", on="Watch it (default), or stop watching it")
+async def setup_watch(interaction: discord.Interaction, channel: discord.TextChannel, on: bool = True):
+    bot.settings.set_watched(interaction.guild_id, channel.id, on)
+    log.info("%s %s %s for game links", interaction.user.display_name, "watches" if on else "stopped watching",
+             channel.name)
+    text = (f"Game links in {channel.mention} now go into the catalog. Run `/backfill` there to add the older ones."
+            if on else f"Game links in {channel.mention} no longer go into the catalog.")
+    await interaction.response.send_message(text, ephemeral=True)
+
+
+@setup.command(name="read", description="Let the bot read a channel or thread without adding its links (or stop)")
+@app_commands.check(is_admin)
+@app_commands.describe(channel="The channel or thread", on="Read it (default), or stop reading it")
+async def setup_read(interaction: discord.Interaction, channel: discord.TextChannel | discord.Thread, on: bool = True):
+    bot.settings.set_read(interaction.guild_id, channel.id, on)
+    await interaction.response.send_message(f"I {'now read' if on else 'no longer read'} {channel.mention}.",
+                                            ephemeral=True)
+
+
+@setup.command(name="post", description="Pick the channel for one kind of the bot's posts, or turn them off")
+@app_commands.check(is_admin)
+@app_commands.describe(kind="Which posts", channel="Where they go (leave empty to turn them off)",
+                       default="Go back to the default channel instead")
+@app_commands.choices(kind=POST_CHOICES)
+async def setup_post(interaction: discord.Interaction, kind: str, channel: discord.TextChannel | None = None,
+                     default: bool = False):
+    bot.settings.set_post_channel(interaction.guild_id, kind, None if default else channel.id if channel else 0)
+    now = bot.post_channel(interaction.guild, kind)
+    await interaction.response.send_message(f"**{POSTS[kind]}:** " + (now.mention if now else "off"), ephemeral=True)
+
+
+@setup.command(name="admin", description="Let someone use every command here (or not)")
+@app_commands.check(is_admin)
+@app_commands.describe(user="Who", on="Make them an admin (default), or take it away")
+async def setup_admin(interaction: discord.Interaction, user: discord.Member, on: bool = True):
+    gid = interaction.guild_id
+    if not on and user.id == interaction.user.id:
+        return await interaction.response.send_message("Ask another admin to take it away, so nobody locks themselves "
+                                                       "out by mistake.", ephemeral=True)
+    if on and not bot.settings.admins(gid):  # the first admin: the mod setting it up stays one too
+        bot.settings.set_admin(gid, interaction.user.id, True)
+    admins = bot.settings.set_admin(gid, user.id, on)
+    who = " ".join(f"<@{u}>" for u in sorted(admins)) if admins else "everyone with Manage Messages"
+    await interaction.response.send_message(f"Admins here: {who}", ephemeral=True)
 
 
 if __name__ == "__main__":

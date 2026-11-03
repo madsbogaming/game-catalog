@@ -65,8 +65,8 @@ class CatalogSite:
         self.public_url: str | None = None
         self.played_deadline: int | None = None  # after this, the page stops asking "Have you played these?"
         self._images: OrderedDict[str, tuple[bytes, str]] = OrderedDict()
-        self._users: dict[int, tuple[float, dict]] = {}
-        self._refreshing: set[int] = set()
+        self._users: dict[tuple[int, int], tuple[float, dict]] = {}  # (server id, user id) -> (fetched at, profile)
+        self._refreshing: set[tuple[int, int]] = set()
         self._shown: dict[int, set[int]] = {}  # guild id -> everyone the catalog shows, whose status the page may ask for
         self._tokens: dict[str, tuple[int, float]] = {}  # access token -> (user id, valid until)
         self._runner: web.AppRunner | None = None
@@ -134,8 +134,8 @@ class CatalogSite:
         status = self.status_of(guild, ids)
         # What each person has earned, for their profile card, and whether they're online
         # (copies, so the cached profiles stay as they were)
-        return rows, {uid: {**u, "achievements": achievements.earned(self.bot.db, int(uid)), "status": status.get(uid)}
-                      for uid, u in users.items()}
+        return rows, {uid: {**u, "achievements": achievements.earned(self.bot.db, guild.id, int(uid)) if guild else [],
+                            "status": status.get(uid)} for uid, u in users.items()}
 
     @staticmethod
     def status_of(guild, ids) -> dict[str, str]:
@@ -173,21 +173,21 @@ class CatalogSite:
     async def users(self, guild, ids) -> dict[str, dict]:
         """Profiles for `ids`. Known ones come straight from the cache (old ones are refreshed in the background,
         so the page never waits for Discord); only never-seen people are fetched before answering."""
-        now = time.monotonic()
-        missing = [uid for uid in ids if uid not in self._users]
-        old = [uid for uid in ids if uid in self._users and now - self._users[uid][0] > USER_CACHE_SECONDS
-               and uid not in self._refreshing]
+        now, gid = time.monotonic(), guild.id if guild else 0  # nicknames and join dates differ per server
+        missing = [uid for uid in ids if (gid, uid) not in self._users]
+        old = [uid for uid in ids if (gid, uid) in self._users and now - self._users[gid, uid][0] > USER_CACHE_SECONDS
+               and (gid, uid) not in self._refreshing]
         if old:
-            self._refreshing.update(old)
+            self._refreshing.update((gid, uid) for uid in old)
             asyncio.create_task(self._fetch_users(guild, old))
         if missing:
             await self._fetch_users(guild, missing)
-        return {str(uid): self._users[uid][1] for uid in ids if uid in self._users}
+        return {str(uid): self._users[gid, uid][1] for uid in ids if (gid, uid) in self._users}
 
     async def _fetch_users(self, guild, uids):
         results = await asyncio.gather(*(self._fetch_user(guild, uid) for uid in uids), return_exceptions=True)
         for uid, result in zip(uids, results):
-            self._refreshing.discard(uid)
+            self._refreshing.discard((guild.id if guild else 0, uid))
             if isinstance(result, Exception):  # one broken profile shouldn't break the page
                 log.warning("Couldn't load Discord profile %s: %r", uid, result)
 
@@ -213,7 +213,7 @@ class CatalogSite:
         if user is None:
             return
         shown = member or user
-        self._users[uid] = (time.monotonic(), {
+        self._users[guild.id if guild else 0, uid] = (time.monotonic(), {
             "name": shown.display_name,
             "username": user.name,
             "avatar": shown.display_avatar.with_size(128).url,

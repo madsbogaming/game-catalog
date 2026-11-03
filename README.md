@@ -43,7 +43,7 @@ That's it. Post a Steam link and watch it land in the catalog.
 | `/random` | Picks a game for tonight. Don't like it? Reroll. |
 | `/link` | Tells the bot which game an Instagram reel is about. |
 
-Admins get more commands to add, tag, refresh and remove games.
+Admins get more commands to add, tag, refresh and remove games, and `/setup` to pick the channels the bot uses. One bot can serve several servers, each with its own catalog.
 
 ## Want more?
 

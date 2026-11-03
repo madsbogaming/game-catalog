@@ -52,8 +52,9 @@ TITLE = Achievement("biggest_refunder", "Biggest refunder", "receipt-refund",
                     "Most refunds in the server ({n}). Can be taken", (1,), ("gold",))
 
 
-def values(conn, bot_id: int | None) -> dict[int, dict[str, int]]:
-    """Each person's number for every achievement: user id -> {achievement key -> value}."""
+def values(conn, bot_id: int | None, guild_id: int) -> dict[int, dict[str, int]]:
+    """Each person's number for every achievement in one server: user id -> {achievement key -> value}.
+    Only that server's games count, and Steam libraries and hours only for people in it."""
     out: dict[int, dict[str, int]] = {}
 
     def put(key, rows):
@@ -61,34 +62,42 @@ def values(conn, bot_id: int | None) -> dict[int, dict[str, int]]:
             if uid and value:
                 out.setdefault(uid, {})[key] = int(value)
 
+    g = (guild_id,)
     appid = "CAST(substr(e.key, 7) AS INTEGER)"  # "steam:123" -> 123
-    put("explorer", conn.execute("SELECT added_by, COUNT(*) FROM entries e WHERE kind != 'instagram' "
-                                 "AND added_by IS NOT NULL AND added_by != ? GROUP BY added_by", (bot_id or 0,)))
+    # Steam data of the server's own people, for the server's own Steam games
+    steam = (f"JOIN entries e ON e.key LIKE 'steam:%' AND {appid} = {{t}}.appid AND e.guild_id = ? "
+             "JOIN guild_members m ON m.guild_id = e.guild_id AND m.user_id = {t}.user_id")
+    in_guild = "JOIN entries e ON e.id = {t}.entry_id AND e.guild_id = ?"  # tables of one game each
+    put("explorer", conn.execute("SELECT added_by, COUNT(*) FROM entries e WHERE guild_id = ? AND kind != 'instagram' "
+                                 "AND added_by IS NOT NULL AND added_by != ? GROUP BY added_by", (guild_id, bot_id or 0)))
     # Played: Steam hours, time the bot saw them playing in Discord, or just seen playing it
     put("friendslopper", conn.execute(f"""
         SELECT user_id, COUNT(DISTINCT entry_id) FROM (
-            SELECT p.user_id, e.id AS entry_id FROM steam_playtime p JOIN entries e
-              ON e.key LIKE 'steam:%' AND {appid} = p.appid WHERE p.minutes > 0
-            UNION SELECT user_id, entry_id FROM tracked_playtime WHERE minutes > 0
-            UNION SELECT user_id, entry_id FROM seen_games) GROUP BY user_id"""))
+            SELECT p.user_id, e.id AS entry_id FROM steam_playtime p {steam.format(t="p")} WHERE p.minutes > 0
+            UNION SELECT t.user_id, t.entry_id FROM tracked_playtime t {in_guild.format(t="t")} WHERE t.minutes > 0
+            UNION SELECT s.user_id, s.entry_id FROM seen_games s {in_guild.format(t="s")}) GROUP BY user_id""", g * 3))
     put("gamer", conn.execute(f"""
         SELECT user_id, SUM(minutes) / 60 FROM (
-            SELECT p.user_id, p.minutes FROM steam_playtime p JOIN entries e ON e.key LIKE 'steam:%' AND {appid} = p.appid
-            UNION ALL SELECT user_id, minutes FROM tracked_playtime) GROUP BY user_id"""))
-    put("big_spender", conn.execute(f"""
-        SELECT o.user_id, SUM(e.price_cents) / 100 FROM steam_owned o JOIN entries e
-          ON e.key LIKE 'steam:%' AND {appid} = o.appid GROUP BY o.user_id"""))
-    put("first_refund", conn.execute("SELECT user_id, COUNT(*) FROM refunds GROUP BY user_id"))
+            SELECT p.user_id, p.minutes FROM steam_playtime p {steam.format(t="p")}
+            UNION ALL SELECT t.user_id, t.minutes FROM tracked_playtime t {in_guild.format(t="t")}) GROUP BY user_id""",
+                                g * 2))
+    put("big_spender", conn.execute(f"SELECT o.user_id, SUM(e.price_cents) / 100 FROM steam_owned o {steam.format(t='o')} "
+                                    "GROUP BY o.user_id", g))
+    put("first_refund", conn.execute(f"SELECT r.user_id, COUNT(*) FROM refunds r {in_guild.format(t='r')} "
+                                     "GROUP BY r.user_id", g))
     put("trendsetter", conn.execute("""
         SELECT e.added_by, MAX((SELECT COUNT(*) FROM interest i WHERE i.entry_id = e.id)) FROM entries e
-        WHERE e.added_by IS NOT NULL GROUP BY e.added_by"""))
-    put("tough_crowd", conn.execute("SELECT user_id, COUNT(*) FROM ratings WHERE stars = 1 GROUP BY user_id"))
-    put("buyers_remorse", conn.execute("SELECT r.user_id, COUNT(*) FROM refunds r JOIN entries e "
-                                       "ON e.id = r.entry_id AND e.added_by = r.user_id GROUP BY r.user_id"))
-    put("early_bird", conn.execute("SELECT added_by, COUNT(*) FROM entries WHERE release_ts IS NOT NULL "
-                                   "AND added_at < release_ts GROUP BY added_by"))
-    put("easy_to_please", conn.execute("SELECT user_id, COUNT(*) FROM ratings WHERE stars = 5 GROUP BY user_id"))
-    put("wishlist_warrior", conn.execute("SELECT user_id, COUNT(*) FROM interest GROUP BY user_id"))
+        WHERE e.guild_id = ? AND e.added_by IS NOT NULL GROUP BY e.added_by""", g))
+    put("tough_crowd", conn.execute(f"SELECT r.user_id, COUNT(*) FROM ratings r {in_guild.format(t='r')} "
+                                    "WHERE r.stars = 1 GROUP BY r.user_id", g))
+    put("buyers_remorse", conn.execute(f"SELECT r.user_id, COUNT(*) FROM refunds r {in_guild.format(t='r')} "
+                                       "WHERE e.added_by = r.user_id GROUP BY r.user_id", g))
+    put("early_bird", conn.execute("SELECT added_by, COUNT(*) FROM entries WHERE guild_id = ? AND release_ts IS NOT NULL "
+                                   "AND added_at < release_ts GROUP BY added_by", g))
+    put("easy_to_please", conn.execute(f"SELECT r.user_id, COUNT(*) FROM ratings r {in_guild.format(t='r')} "
+                                       "WHERE r.stars = 5 GROUP BY r.user_id", g))
+    put("wishlist_warrior", conn.execute(f"SELECT i.user_id, COUNT(*) FROM interest i {in_guild.format(t='i')} "
+                                         "GROUP BY i.user_id", g))
     return out
 
 
@@ -96,46 +105,49 @@ def tier_for(a: Achievement, value: int) -> int:
     return sum(value >= t for t in a.thresholds)
 
 
-def refund_counts(conn) -> list[tuple[int, int, int]]:
-    """(user id, refunds, when they made their latest one), most refunds first; ties: whoever got there first."""
-    return conn.execute("SELECT user_id, COUNT(*), MAX(at) FROM refunds GROUP BY user_id "
-                        "ORDER BY COUNT(*) DESC, MAX(at) ASC").fetchall()
+def refund_counts(conn, guild_id: int) -> list[tuple[int, int, int]]:
+    """(user id, refunds of the server's games, when they made their latest one), most refunds first; ties: whoever
+    got there first."""
+    return conn.execute("SELECT r.user_id, COUNT(*), MAX(r.at) FROM refunds r JOIN entries e ON e.id = r.entry_id "
+                        "WHERE e.guild_id = ? GROUP BY r.user_id ORDER BY COUNT(*) DESC, MAX(r.at) ASC",
+                        (guild_id,)).fetchall()
 
 
-def sync(db, bot_id: int | None, *, silent: bool) -> None:
-    """Record newly earned achievements (and a new Biggest refunder). With `silent`, they're stored as already
-    announced: the first run gives everyone what they had already earned without a single message. The same
+def sync(db, bot_id: int | None, guild_id: int, *, silent: bool) -> None:
+    """Record newly earned achievements (and a new Biggest refunder) in one server. With `silent`, they're stored as
+    already announced: the first run gives everyone what they had already earned without a single message. The same
     goes for an achievement added later: whoever already qualifies gets it quietly, only new unlocks are posted."""
     conn, now = db.conn, int(time.time())
-    known = set((db.get_meta("achievement_keys") or "").split(","))
-    for uid, vals in values(conn, bot_id).items():
+    known = set((db.get_guild_meta(guild_id, "achievement_keys") or "").split(","))
+    for uid, vals in values(conn, bot_id, guild_id).items():
         for key, value in vals.items():
             a = BY_KEY[key]
             tier = tier_for(a, value)
-            if tier and tier > db.achievement_tier(uid, key):
-                db.save_achievement(uid, key, tier, now, announced=silent or key not in known)
-    db.set_meta("achievement_keys", ",".join(BY_KEY))
-    counts = refund_counts(conn)
-    holder = db.get_meta("refund_title")
+            if tier and tier > db.achievement_tier(guild_id, uid, key):
+                db.save_achievement(guild_id, uid, key, tier, now, announced=silent or key not in known)
+    db.set_guild_meta(guild_id, "achievement_keys", ",".join(BY_KEY))
+    counts = refund_counts(conn, guild_id)
+    holder = db.get_guild_meta(guild_id, "refund_title")
     holder = int(holder) if holder else None
     held = next((n for uid, n, _ in counts if uid == holder), 0)
     best = counts[0] if counts else None
     # It only changes hands on MORE refunds than the holder has, so a tie never takes it
     if best and best[0] != holder and best[1] > held:
-        db.move_title(holder, best[0], now, announced=silent)
-        db.set_meta("refund_title", best[0])
-        db.set_meta("refund_title_from", f"{holder or ''}:{held}")  # for the message: who had it, with how many
+        db.move_title(guild_id, holder, best[0], now, announced=silent)
+        db.set_guild_meta(guild_id, "refund_title", best[0])
+        # for the message: who had it, with how many
+        db.set_guild_meta(guild_id, "refund_title_from", f"{holder or ''}:{held}")
     elif holder and not held:  # the holder undid all their refunds
-        db.move_title(holder, None, now, announced=True)
-        db.set_meta("refund_title", "")
+        db.move_title(guild_id, holder, None, now, announced=True)
+        db.set_guild_meta(guild_id, "refund_title", "")
 
 
-def earned(db, uid: int) -> list[dict]:
-    """What one person has earned, for their profile: the title first, then by tier (gold first)."""
+def earned(db, guild_id: int, uid: int) -> list[dict]:
+    """What one person has earned in the server, for their profile: the title first, then by tier (gold first)."""
     out = []
-    for key, tier, at in db.achievements(uid):
+    for key, tier, at in db.achievements(guild_id, uid):
         if key == TITLE.key:
-            n = next((n for u, n, _ in refund_counts(db.conn) if u == uid), 0)
+            n = next((n for u, n, _ in refund_counts(db.conn, guild_id) if u == uid), 0)
             out.append({"key": key, "name": TITLE.name, "icon": TITLE.icon, "color": TITLE_COLOR, "title": True,
                         "desc": TITLE.desc.format(n=n), "at": at})
         elif key in BY_KEY:

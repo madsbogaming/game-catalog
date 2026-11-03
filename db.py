@@ -128,13 +128,15 @@ CREATE TABLE IF NOT EXISTS played_answers (
     at        INTEGER NOT NULL,
     PRIMARY KEY (entry_id, user_id)
 );
--- "Get on the game" (#GOTG): the bot's daily afternoon post (gotg.py), the games it picked and who pressed "I'm in"
+-- "Get on the game" (#GOTG): the bot's daily afternoon post (gotg.py) in each server, the games it picked and who
+-- pressed "I'm in"
 CREATE TABLE IF NOT EXISTS gotg_posts (
-    day        TEXT    PRIMARY KEY,           -- local date, e.g. '2026-11-03'
     guild_id   INTEGER NOT NULL,
+    day        TEXT    NOT NULL,              -- local date, e.g. '2026-11-03'
     channel_id INTEGER,
     message_id INTEGER,
-    picks      TEXT    NOT NULL               -- JSON [[entry id, 'owned' | 'buy'], ...]
+    picks      TEXT    NOT NULL,              -- JSON [[entry id, 'owned' | 'buy'], ...]
+    PRIMARY KEY (guild_id, day)
 );
 CREATE TABLE IF NOT EXISTS gotg_in (
     day       TEXT    NOT NULL,
@@ -147,6 +149,20 @@ CREATE TABLE IF NOT EXISTS gotg_in (
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value TEXT
+);
+-- The same per server: its /setup settings (guilds.py) and its own state, e.g. when its weekly deals were posted
+CREATE TABLE IF NOT EXISTS guild_meta (
+    guild_id INTEGER NOT NULL,
+    key      TEXT    NOT NULL,
+    value    TEXT,
+    PRIMARY KEY (guild_id, key)
+);
+-- Who is in each server the bot is in (kept up to date by the bot). Steam libraries and hours belong to a person, not
+-- a server, so they only count in the servers that person is in.
+CREATE TABLE IF NOT EXISTS guild_members (
+    guild_id INTEGER NOT NULL,
+    user_id  INTEGER NOT NULL,
+    PRIMARY KEY (guild_id, user_id)
 );
 -- When someone last tagged a friend from /catalog (one tag per friend every 30 minutes).
 CREATE TABLE IF NOT EXISTS tags (
@@ -161,16 +177,23 @@ CREATE TABLE IF NOT EXISTS messages (
     entry_id   INTEGER NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
     PRIMARY KEY (message_id, entry_id)
 );
--- Achievements people earned (achievements.py), the highest tier reached; "announced" once the bot posted it
+-- Achievements people earned in each server (achievements.py), the highest tier reached; "announced" once posted
 CREATE TABLE IF NOT EXISTS achievements (
+    guild_id  INTEGER NOT NULL,
     user_id   INTEGER NOT NULL,
     key       TEXT    NOT NULL,
     tier      INTEGER NOT NULL,
     at        INTEGER NOT NULL,
     announced INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY (user_id, key)
+    PRIMARY KEY (guild_id, user_id, key)
 );
 """
+
+# Bot state that used to be kept once for the whole bot and is now kept per server (moved to the server that has the
+# catalog when an older catalog.db is opened). Keys ending in ":" are prefixes.
+GUILD_META_KEYS = ("allowed_apps", "deals_posted", "achievements_started", "achievements_launch_posted",
+                   "achievement_keys", "refund_title", "refund_title_from", "achievement_ping:", "played_rule_post",
+                   "played_rule_progress", "played_rule_reminded")
 
 JSON_FIELDS = {"genres", "tags", "custom_tags", "categories", "clips"}
 COLUMNS = {
@@ -192,13 +215,14 @@ STATUSES = {
 PLAYERS_NEEDED = 3
 PLAYED_MIN_MINUTES = 30  # Steam hours (or time seen in Discord) below this don't count as having played it
 # Who played which game without saying so: a rating (not of a demo), a refund, the bot seeing them play it in
-# Discord, or Steam hours of the game itself (not its demo)
+# Discord, or Steam hours of the game itself (not its demo; only for people in the game's server)
 PLAYED_AUTO_SQL = f"""
     SELECT r.entry_id, r.user_id FROM ratings r JOIN entries e ON e.id = r.entry_id WHERE e.status != 'demo'
     UNION SELECT entry_id, user_id FROM refunds
     UNION SELECT entry_id, user_id FROM seen_games
     UNION SELECT entry_id, user_id FROM tracked_playtime WHERE minutes >= {PLAYED_MIN_MINUTES}
     UNION SELECT e.id, p.user_id FROM entries e JOIN steam_playtime p ON e.key = 'steam:' || p.appid
+          JOIN guild_members m ON m.guild_id = e.guild_id AND m.user_id = p.user_id
           WHERE p.minutes >= {PLAYED_MIN_MINUTES}"""
 # ... plus everyone who said "I played it" themselves
 PLAYED_SQL = PLAYED_AUTO_SQL + "\n    UNION SELECT entry_id, user_id FROM played_answers WHERE played = 1"
@@ -250,11 +274,43 @@ class Database:
         self.conn.execute("UPDATE entries SET status = 'want' WHERE status NOT IN (%s)" % ",".join("?" * len(STATUSES)),
                           tuple(STATUSES))
         self.conn.commit()
+        self._migrate_to_guilds()
         # The games that were Played when a game started needing PLAYERS_NEEDED players: they may stay Played
         # with fewer, and can be put back to Played by hand if someone moves them out by mistake
         if self.get_meta("played_before_rule") is None:
             ids = [r[0] for r in self.conn.execute("SELECT id FROM entries WHERE status = 'played' ORDER BY id")]
             self.set_meta("played_before_rule", json.dumps(ids))
+
+    def _migrate_to_guilds(self):
+        """Older catalogs served one server: what was kept for the whole bot goes to that server (the one with the
+        catalog's games). A new, empty catalog has nothing to move."""
+        home = self.conn.execute("SELECT guild_id FROM entries GROUP BY guild_id ORDER BY COUNT(*) DESC").fetchone()
+        home = home[0] if home else None
+        gotg_key = [r[1] for r in sorted(self.conn.execute("PRAGMA table_info(gotg_posts)"), key=lambda r: r[5]) if r[5]]
+        if gotg_key == ["day"]:  # one post a day for the whole bot: now one per server
+            self.conn.executescript("""
+                ALTER TABLE gotg_posts RENAME TO gotg_posts_old;
+                CREATE TABLE gotg_posts (guild_id INTEGER NOT NULL, day TEXT NOT NULL, channel_id INTEGER,
+                    message_id INTEGER, picks TEXT NOT NULL, PRIMARY KEY (guild_id, day));
+                INSERT INTO gotg_posts SELECT guild_id, day, channel_id, message_id, picks FROM gotg_posts_old;
+                DROP TABLE gotg_posts_old;""")
+        if "guild_id" not in {r[1] for r in self.conn.execute("PRAGMA table_info(achievements)")}:
+            self.conn.executescript("""
+                ALTER TABLE achievements RENAME TO achievements_old;
+                CREATE TABLE achievements (guild_id INTEGER NOT NULL, user_id INTEGER NOT NULL, key TEXT NOT NULL,
+                    tier INTEGER NOT NULL, at INTEGER NOT NULL, announced INTEGER NOT NULL DEFAULT 0,
+                    PRIMARY KEY (guild_id, user_id, key));""")
+            if home is not None:
+                self.conn.execute("INSERT INTO achievements SELECT ?, user_id, key, tier, at, announced "
+                                  "FROM achievements_old", (home,))
+            self.conn.execute("DROP TABLE achievements_old")
+        for key in GUILD_META_KEYS:
+            where, arg = ("key LIKE ?", key + "%") if key.endswith(":") else ("key = ?", key)
+            if home is not None:
+                self.conn.execute(f"INSERT OR IGNORE INTO guild_meta SELECT ?, key, value FROM meta WHERE {where}",
+                                  (home, arg))
+            self.conn.execute(f"DELETE FROM meta WHERE {where}", (arg,))
+        self.conn.commit()
 
     # -- helpers -----------------------------------------------------------
 
@@ -476,36 +532,40 @@ class Database:
 
     # -- achievements --
 
-    def achievement_tier(self, user_id: int, key: str) -> int:
-        row = self.conn.execute("SELECT tier FROM achievements WHERE user_id = ? AND key = ?", (user_id, key)).fetchone()
+    def achievement_tier(self, guild_id: int, user_id: int, key: str) -> int:
+        row = self.conn.execute("SELECT tier FROM achievements WHERE guild_id = ? AND user_id = ? AND key = ?",
+                                (guild_id, user_id, key)).fetchone()
         return row[0] if row else 0
 
-    def save_achievement(self, user_id: int, key: str, tier: int, at: int, *, announced: bool):
-        self.conn.execute("INSERT OR REPLACE INTO achievements VALUES (?, ?, ?, ?, ?)",
-                          (user_id, key, tier, at, int(announced)))
+    def save_achievement(self, guild_id: int, user_id: int, key: str, tier: int, at: int, *, announced: bool):
+        self.conn.execute("INSERT OR REPLACE INTO achievements VALUES (?, ?, ?, ?, ?, ?)",
+                          (guild_id, user_id, key, tier, at, int(announced)))
         self.conn.commit()
 
-    def move_title(self, old: int | None, new: int | None, at: int, *, announced: bool):
-        """The Biggest refunder title goes from `old` to `new` (either can be None)."""
-        self.conn.execute("DELETE FROM achievements WHERE key = 'biggest_refunder'")
+    def move_title(self, guild_id: int, old: int | None, new: int | None, at: int, *, announced: bool):
+        """The server's Biggest refunder title goes from `old` to `new` (either can be None)."""
+        self.conn.execute("DELETE FROM achievements WHERE guild_id = ? AND key = 'biggest_refunder'", (guild_id,))
         if new:
-            self.conn.execute("INSERT INTO achievements VALUES (?, 'biggest_refunder', 1, ?, ?)", (new, at, int(announced)))
+            self.conn.execute("INSERT INTO achievements VALUES (?, ?, 'biggest_refunder', 1, ?, ?)",
+                              (guild_id, new, at, int(announced)))
         self.conn.commit()
 
-    def achievements(self, user_id: int) -> list[tuple[str, int, int]]:
-        """(key, tier, earned at) of everything `user_id` has earned."""
-        return [tuple(r) for r in self.conn.execute("SELECT key, tier, at FROM achievements WHERE user_id = ?", (user_id,))]
+    def achievements(self, guild_id: int, user_id: int) -> list[tuple[str, int, int]]:
+        """(key, tier, earned at) of everything `user_id` has earned in the server."""
+        return [tuple(r) for r in self.conn.execute(
+            "SELECT key, tier, at FROM achievements WHERE guild_id = ? AND user_id = ?", (guild_id, user_id))]
 
-    def unannounced(self) -> dict[int, list[tuple[str, int]]]:
-        """Earned but not posted yet: user id -> [(key, tier)], oldest first."""
+    def unannounced(self, guild_id: int) -> dict[int, list[tuple[str, int]]]:
+        """Earned in the server but not posted yet: user id -> [(key, tier)], oldest first."""
         out: dict[int, list[tuple[str, int]]] = {}
-        for uid, key, tier in self.conn.execute("SELECT user_id, key, tier FROM achievements WHERE announced = 0 ORDER BY at"):
+        for uid, key, tier in self.conn.execute("SELECT user_id, key, tier FROM achievements WHERE guild_id = ? "
+                                                "AND announced = 0 ORDER BY at", (guild_id,)):
             out.setdefault(uid, []).append((key, tier))
         return out
 
-    def mark_announced(self, user_id: int, keys: list[str]):
-        self._write_quietly(f"UPDATE achievements SET announced = 1 WHERE user_id = ? AND key IN ({','.join('?' * len(keys))})",
-                            (user_id, *keys))
+    def mark_announced(self, guild_id: int, user_id: int, keys: list[str]):
+        self._write_quietly(f"UPDATE achievements SET announced = 1 WHERE guild_id = ? AND user_id = ? "
+                            f"AND key IN ({','.join('?' * len(keys))})", (guild_id, user_id, *keys))
 
     def saw_playing(self, user_id: int, when: int):
         self._write_quietly("INSERT OR REPLACE INTO seen_playing VALUES (?, ?)", (user_id, when))
@@ -540,10 +600,11 @@ class Database:
                               [(user_id, appid, m, last) for appid, (m, last) in games.items() if m])
         self.conn.commit()
 
-    def owners(self) -> dict[int, set[int]]:
-        """Steam app id -> who has it in their linked Steam library."""
+    def owners(self, guild_id: int) -> dict[int, set[int]]:
+        """Steam app id -> who in the server has it in their linked Steam library."""
         owners: dict[int, set[int]] = {}
-        for uid, appid in self.conn.execute("SELECT user_id, appid FROM steam_owned"):
+        for uid, appid in self.conn.execute("SELECT o.user_id, o.appid FROM steam_owned o JOIN guild_members m "
+                                            "ON m.user_id = o.user_id WHERE m.guild_id = ?", (guild_id,)):
             owners.setdefault(appid, set()).add(uid)
         return owners
 
@@ -553,7 +614,8 @@ class Database:
             SELECT entry_id, MAX(at) FROM (
                 SELECT entry_id, last_seen AS at FROM seen_games
                 UNION ALL SELECT entry_id, last_seen FROM tracked_playtime
-                UNION ALL SELECT e.id, p.last_played FROM entries e JOIN steam_playtime p ON e.key = 'steam:' || p.appid)
+                UNION ALL SELECT e.id, p.last_played FROM entries e JOIN steam_playtime p ON e.key = 'steam:' || p.appid
+                          JOIN guild_members m ON m.guild_id = e.guild_id AND m.user_id = p.user_id)
             WHERE at IS NOT NULL GROUP BY entry_id""")
         return dict(rows.fetchall())
 
@@ -632,18 +694,18 @@ class Database:
 
     # -- Get on the game (#GOTG) ------------------------------------------
 
-    def gotg_post(self, day: str) -> dict | None:
-        row = self.conn.execute("SELECT * FROM gotg_posts WHERE day = ?", (day,)).fetchone()
+    def gotg_post(self, guild_id: int, day: str) -> dict | None:
+        row = self.conn.execute("SELECT * FROM gotg_posts WHERE guild_id = ? AND day = ?", (guild_id, day)).fetchone()
         return {**dict(row), "picks": json.loads(row["picks"])} if row else None
 
-    def save_gotg_post(self, day: str, guild_id: int, picks: list[tuple[int, str]],
+    def save_gotg_post(self, guild_id: int, day: str, picks: list[tuple[int, str]],
                        channel_id: int | None = None, message_id: int | None = None):
         self._write_quietly("INSERT OR REPLACE INTO gotg_posts VALUES (?, ?, ?, ?, ?)",
-                            (day, guild_id, channel_id, message_id, json.dumps(picks)))
+                            (guild_id, day, channel_id, message_id, json.dumps(picks)))
 
-    def gotg_posted_since(self, day: str) -> set[int]:
-        """Entry ids picked on `day` or later (they rest a while before they're picked again)."""
-        rows = self.conn.execute("SELECT picks FROM gotg_posts WHERE day >= ?", (day,))
+    def gotg_posted_since(self, guild_id: int, day: str) -> set[int]:
+        """Entry ids the server's #GOTG picked on `day` or later (they rest a while before they're picked again)."""
+        rows = self.conn.execute("SELECT picks FROM gotg_posts WHERE guild_id = ? AND day >= ?", (guild_id, day))
         return {entry_id for (picks,) in rows for entry_id, _ in json.loads(picks)}
 
     def gotg_in(self, day: str, entry_id: int) -> list[int]:
@@ -664,6 +726,40 @@ class Database:
 
     def set_meta(self, key: str, value):
         self._write_quietly("INSERT OR REPLACE INTO meta VALUES (?, ?)", (key, str(value)))
+
+    def get_guild_meta(self, guild_id: int, key: str) -> str | None:
+        row = self.conn.execute("SELECT value FROM guild_meta WHERE guild_id = ? AND key = ?", (guild_id, key)).fetchone()
+        return row[0] if row else None
+
+    def set_guild_meta(self, guild_id: int, key: str, value):
+        """None removes it."""
+        if value is None:
+            self._write_quietly("DELETE FROM guild_meta WHERE guild_id = ? AND key = ?", (guild_id, key))
+        else:
+            self._write_quietly("INSERT OR REPLACE INTO guild_meta VALUES (?, ?, ?)", (guild_id, key, str(value)))
+
+    # -- who is in which server ---------------------------------------------
+
+    def members(self, guild_id: int) -> set[int]:
+        return {r[0] for r in self.conn.execute("SELECT user_id FROM guild_members WHERE guild_id = ?", (guild_id,))}
+
+    def set_members(self, guild_id: int, user_ids):
+        """Everyone in the server right now (none: the bot left it)."""
+        now, before = set(user_ids), self.members(guild_id)
+        if now == before:
+            return  # nothing changed: open pages needn't reload
+        self.conn.executemany("DELETE FROM guild_members WHERE guild_id = ? AND user_id = ?",
+                              [(guild_id, u) for u in before - now])
+        self.conn.executemany("INSERT INTO guild_members VALUES (?, ?)", [(guild_id, u) for u in now - before])
+        self.conn.commit()
+
+    def add_member(self, guild_id: int, user_id: int):
+        self.conn.execute("INSERT OR IGNORE INTO guild_members VALUES (?, ?)", (guild_id, user_id))
+        self.conn.commit()
+
+    def remove_member(self, guild_id: int, user_id: int):
+        self.conn.execute("DELETE FROM guild_members WHERE guild_id = ? AND user_id = ?", (guild_id, user_id))
+        self.conn.commit()
 
     def last_tagged(self, sender_id: int, target_id: int) -> int | None:
         row = self.conn.execute("SELECT tagged_at FROM tags WHERE sender_id = ? AND target_id = ?",

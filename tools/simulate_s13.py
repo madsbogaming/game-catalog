@@ -61,6 +61,9 @@ def known_names() -> dict[int, str]:
 
 
 NAMES = known_names()
+# Steam libraries and hours only count for people in the server: on the copy, everyone with a name is
+db.conn.executemany("INSERT OR IGNORE INTO guild_members VALUES (?, ?)", [(GUILD_ID, uid) for uid in NAMES])
+db.conn.commit()
 
 
 class Member:
@@ -232,19 +235,19 @@ class SimSite(CatalogSite):
     async def sim_gotg(self, request, ping: str | None = None):
         """Today's #GOTG post as the bot would send it at 16:30 (picked now on the copy if it hasn't been yet)."""
         uid, day = int(request.match_info["uid"]), date.today().isoformat()
-        if not db.gotg_post(day):
-            db.save_gotg_post(day, GUILD_ID, B.gotg_picks(GUILD_ID, date.today()))
+        if not db.gotg_post(GUILD_ID, day):
+            db.save_gotg_post(GUILD_ID, day, B.gotg_picks(GUILD_ID, date.today()))
         name = html.escape(Member(uid).display_name)
         body = (f'<p><a href="/sim">← Pick someone else</a> · Press “I\'m in” as {name}, then as two others '
                 f'to see the ping</p><div class="who">The 16:30 post in #{B.GOTG_CHANNEL_NAME} (pings nobody)</div>'
-                f'{"".join(draw(c, uid) for c in B.gotg_view(day).children)}')
+                f'{"".join(draw(c, uid) for c in B.gotg_view(GUILD_ID, day).children)}')
         if ping:
             body += f'<div class="who">The bot\'s reply (pings the people after “Join them”)</div><div class="box" style="border-color:#5865f2"><p>{markdown(ping)}</p></div>'
         return web.Response(text=PAGE.format(body=body), content_type="text/html")
 
     async def sim_gotg_in(self, request):
         uid, entry = int(request.match_info["uid"]), int(request.match_info["entry"])
-        text, _ = B.gotg_press(date.today().isoformat(), entry, Member(uid))
+        text, _ = B.gotg_press(GUILD_ID, date.today().isoformat(), entry, Member(uid))
         return await self.sim_gotg(request, text)
 
     async def sim_answer(self, request):

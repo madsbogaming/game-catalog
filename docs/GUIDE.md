@@ -30,8 +30,19 @@ A Discord bot that watches your server for **Steam store links** and **Instagram
 | `/remove` | Remove a game. |
 | `/allow` | Let a game in even though its Steam page breaks the rules (e.g. playable online but Steam only lists split screen). It's added, credited to whoever posted it first, and stays allowed. |
 | `/backfill` | Archive links posted before the bot joined. Reads the whole channel unless you give a `limit`. |
+| `/setup show` | See which channels the bot reads and posts in on this server, and who its admins are. |
+| `/setup watch` | Put game links from a channel into the catalog (`on: False` stops it). Run `/backfill` there afterwards for the older links. |
+| `/setup read` | Let the bot read a channel or thread without adding its links, e.g. a feedback thread. |
+| `/setup post` | Pick the channel for free Steam games, weekly deals, achievements, Played rule posts or #GOTG. Leave the channel empty to turn those posts off, or pick `default: True` to go back to the default. |
+| `/setup admin` | Let someone use every command on this server (`on: False` takes it away). |
 
-Everyone can use `/catalog`, `/random` and `/link`. All other commands are only for the people listed in `ADMIN_IDS` in `.env` (comma-separated Discord user IDs), and regular members don't see them. If `ADMIN_IDS` is empty, mods (Manage Messages permission) can use them.
+Everyone can use `/catalog`, `/random` and `/link`. All other commands are only for the server's admins, and regular members don't see them. A server's admins are the ones picked with `/setup admin`; on the home server (`GUILD_ID`) it's `ADMIN_IDS` in `.env` until you pick some. With no admins picked, mods (Manage Messages permission) can use them.
+
+### More than one server
+
+One bot can serve any number of servers. Each server has its own catalog, votes, ratings, achievements, #GOTG and weekly deals; nothing is shared between them. Steam libraries and hours belong to a person, so they count in every server that person is in, and only there.
+
+The channels in `.env` are the defaults for the server they're in. A server the bot is added to later starts with nothing watched: a mod runs `/setup watch` on its games channel, then `/backfill` there. Its free games, deals and achievements go to the first watched channel unless `/setup post` picks another one, and #GOTG goes to a channel named `GOTG_CHANNEL_NAME` if there is one.
 
 ## Setup
 
@@ -45,8 +56,8 @@ Everyone can use `/catalog`, `/random` and `/link`. All other commands are only 
 ### 2. Configure
 Copy `.env.example` to `.env` and fill in:
 - `DISCORD_TOKEN`: the token from step 1.
-- `GUILD_ID`: your server's ID. Turn on Developer Mode in Discord settings, then right-click the server → Copy Server ID. With this set, slash commands appear instantly.
-- `WATCH_CHANNEL_IDS`: the channels whose game links go into the catalog, e.g. your `#games` channel.
+- `GUILD_ID`: your server's ID, the bot's home server. Turn on Developer Mode in Discord settings, then right-click the server → Copy Server ID. `ADMIN_IDS` count for this server. Other servers set up their own with `/setup` (see [More than one server](#more-than-one-server)).
+- `WATCH_CHANNEL_IDS`: the channels whose game links go into the catalog, e.g. your `#games` channel. You can also pick them later with `/setup watch`.
 - `READ_CHANNEL_IDS` (optional): other channels or threads the bot may read, e.g. a feedback thread. The bot ignores messages in every channel that isn't in one of these two lists, even where Discord lets it see them. To make Discord enforce it too, take **View Channels** away from the bot's roles server-wide and give it back only on those channels.
 - `STEAM_COUNTRY`: the country used for prices, e.g. `dk` for DKK.
 - `STEAM_API_KEY` (optional): a free key from <https://steamcommunity.com/dev/apikey>. Ratings of played games get a green "played" badge when the bot has seen that person playing the game in Discord; with this key, the badge also shows their Steam hours (including play from before the bot existed). That works for people who linked Steam to their Discord account and have **Game details** set to public in Steam's privacy settings. The catalog reads the linked Steam account when they sign in, and the hours are refreshed every 2 hours. The bot also notices refunds: when a catalog game disappears from someone's Steam library after less than 2 hours of play (Steam's refund limit), it marks them as having refunded it ("Undo my refund" in the status menu takes it back).

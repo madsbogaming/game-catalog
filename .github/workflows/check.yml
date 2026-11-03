@@ -1,4 +1,4 @@
-# Runs pyflakes on every push and pull request, catching typos, missing imports and unused names
+# Runs pyflakes on every push and pull request, catching typos, missing imports and unused names, and the unit tests
 name: Check
 
 on: [push, pull_request]
@@ -12,4 +12,5 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install pyflakes==4.1.0
-      - run: pyflakes *.py tools/*.py
+      - run: pyflakes *.py tools/*.py tests/*.py
+      - run: python -m unittest -v  # standard library only, so nothing to install

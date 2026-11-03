@@ -1,7 +1,7 @@
 """Get on the game (#GOTG): which games the bot's daily afternoon post suggests playing together tonight.
 
-Two groups: games enough of you already own (any co-op or multiplayer game in the catalog, Played ones too, going by
-the Steam libraries linked to Discord), and games worth buying (the most wanted ones not enough of you own yet).
+Each server gets its own post from its own catalog. Two groups: games enough of you already own (any co-op or
+multiplayer game in the catalog, Played ones too, going by the Steam libraries of the server's people linked to Discord), and games worth buying (the most wanted ones not enough of you own yet).
 A posted game rests a week, the owned ones are from different genres, and close calls change from day to day."""
 
 import random
@@ -41,8 +41,8 @@ def pick(db: Database, guild_id: int, day: str, rest_from: str, now: float | Non
     `day` seeds the day's small shuffle; games posted on `rest_from` or later are left out."""
     now = now or time.time()
     jitter = random.Random(day)
-    rested = db.gotg_posted_since(rest_from)
-    owners, last_played = db.owners(), db.last_played()
+    rested = db.gotg_posted_since(guild_id, rest_from)
+    owners, last_played = db.owners(guild_id), db.last_played()
     games = [e for e in db.query(guild_id, source="games")
              if e["id"] not in rested and released(e, now) and (e["coop"] or e["multiplayer"])
              and len(db.players(e["id"])) < 2]  # a game already being played together needs no nudge
