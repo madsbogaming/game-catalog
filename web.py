@@ -67,6 +67,7 @@ class CatalogSite:
         self._images: OrderedDict[str, tuple[bytes, str]] = OrderedDict()
         self._users: dict[int, tuple[float, dict]] = {}
         self._refreshing: set[int] = set()
+        self._shown: dict[int, set[int]] = {}  # guild id -> everyone the catalog shows, whose status the page may ask for
         self._tokens: dict[str, tuple[int, float]] = {}  # access token -> (user id, valid until)
         self._runner: web.AppRunner | None = None
         self._tunnel: asyncio.subprocess.Process | None = None
@@ -85,6 +86,7 @@ class CatalogSite:
         app.router.add_get("/data.json", self.data)
         app.router.add_get("/version", self.version)
         app.router.add_get("/members.json", self.members)
+        app.router.add_get("/status.json", self.statuses)
         app.router.add_get("/img", self.image)
         app.router.add_post("/api/token", self.token)
         app.router.add_get("/auth/login", self.login)
@@ -127,8 +129,20 @@ class CatalogSite:
                 ids.add(r["added_by"])
             ids.update(int(uid) for uid in MENTION_RE.findall(r["note"] or ""))
         users = await self.users(guild, ids)
-        # What each person has earned, for their profile card (copies, so the cached profiles stay as they were)
-        return rows, {uid: {**u, "achievements": achievements.earned(self.bot.db, int(uid))} for uid, u in users.items()}
+        if guild:
+            self._shown[guild.id] = ids
+        status = self.status_of(guild, ids)
+        # What each person has earned, for their profile card, and whether they're online
+        # (copies, so the cached profiles stay as they were)
+        return rows, {uid: {**u, "achievements": achievements.earned(self.bot.db, int(uid)), "status": status.get(uid)}
+                      for uid, u in users.items()}
+
+    @staticmethod
+    def status_of(guild, ids) -> dict[str, str]:
+        """online, idle, dnd or offline, as Discord shows it, for those of `ids` still in the server.
+        Someone invisible shows as offline, as they do in Discord."""
+        members = ((uid, guild.get_member(uid)) for uid in ids) if guild else ()
+        return {str(uid): "offline" if str(m.status) == "invisible" else str(m.status) for uid, m in members if m}
 
     def ratings(self, entry) -> list[dict]:
         """The game's ratings. "played": the bot saw them playing it in Discord, or Steam has hours of it (or
@@ -235,7 +249,9 @@ class CatalogSite:
         uid = await self.viewer(request)
         if guild is None or guild.get_member(uid) is None:
             raise web.HTTPForbidden(text="Only members of the server can see who's in it")
-        people = {str(m.id): {"name": m.display_name, "username": m.name, "avatar": m.display_avatar.with_size(64).url}
+        status = self.status_of(guild, [m.id for m in guild.members if not m.bot] if guild else [])
+        people = {str(m.id): {"name": m.display_name, "username": m.name, "avatar": m.display_avatar.with_size(64).url,
+                              "status": status.get(str(m.id))}
                   for m in (guild.members if guild else []) if not m.bot}
         response = web.json_response(people, headers={"Cache-Control": "no-store"})
         response.enable_compression()
@@ -474,6 +490,13 @@ class CatalogSite:
         log.info("%s %s %s", member.display_name, {True: "played", False: "didn't play", None: "took back their answer for"}[played],
                  entry["title"])
         return web.json_response({**self.played_reply(entry["id"]), "users": await self.users(guild, {member.id})})
+
+    async def statuses(self, request: web.Request) -> web.Response:
+        """Who's online now, for the dots on the faces. Status changes don't change the catalog's version,
+        so open pages ask for this every little while. Only the people the catalog shows."""
+        guild = self.guild(request)
+        status = self.status_of(guild, self._shown.get(guild.id, ()) if guild else ())
+        return web.json_response(status, headers={"Cache-Control": "no-store"})
 
     async def version(self, request: web.Request) -> web.Response:
         """A number that changes whenever the catalog does, so open pages know when to reload their data."""

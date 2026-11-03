@@ -278,12 +278,25 @@ main { --cols:99; --gap:clamp(10px, 1.2vw, 16px); display:grid; gap:var(--gap);
 .pp:not(:has(.av, .pp-name, .pp-more)) { padding-right:9px; }
 .pp-l:last-child { margin-right:0; }
 .pp .av + .av { margin-left:-6px; }
+/* Discord's status dot on a face in the "+N" list and the profile: green online, yellow moon idle,
+   red do not disturb, grey ring offline. Not on the cards: there it was too much among the faces */
+.st { position:relative; display:inline-flex; flex:none; --st-ring:#232428; --st:9px; }
+.st[data-status]::after { content:""; position:absolute; right:-1px; bottom:-1px; width:var(--st); height:var(--st);
+  border-radius:50%; box-shadow:0 0 0 2px var(--st-ring); z-index:1; pointer-events:none; }
+.st[data-status="online"]::after { background:#23a55a; }
+.st[data-status="idle"]::after { background:radial-gradient(circle calc(var(--st) * .38) at 22% 22%, var(--st-ring) 98%, #f0b232 100%); }
+.st[data-status="dnd"]::after { background:linear-gradient(var(--st-ring), var(--st-ring)) center / 62% 22% no-repeat, #f23f43; }
+.st[data-status="offline"]::after { background:radial-gradient(circle closest-side, var(--st-ring) 40%, #80848e 44%); }
 .pp-name { margin-right:7px; color:var(--ink); }
 .pp-old { display:inline-flex; margin-right:5px; color:var(--muted); cursor:default; }
 .pp-old .i { width:14px; height:14px; }
 .pp-more { font:inherit; font-weight:650; color:var(--ink); background:none; border:0; padding:0 7px 0 5px; height:100%; cursor:pointer;
   border-radius:0 15px 15px 0; }
 .pp-more:hover, .pp-more.open, .chip-more.open { color:var(--accent); }
+/* The pill's label opens its list too, so everyone's status is one hover away, "+N" or not */
+.pp-l[data-list] { cursor:pointer; }
+.pp-l[data-list]:hover, .pp-l.open { color:var(--accent); }
+
 .fit-probe { visibility:hidden; position:relative; z-index:-1; }
 .more { font-size:12px; color:var(--muted); margin-left:6px; }
 .want { align-self:flex-start; font:inherit; font-size:12px; white-space:nowrap; padding:3px 10px; border-radius:999px; cursor:pointer;
@@ -321,6 +334,8 @@ main { --cols:99; --gap:clamp(10px, 1.2vw, 16px); display:grid; gap:var(--gap);
 .ping-list::-webkit-scrollbar-thumb { background:var(--thumb); border-radius:999px; }
 .ping-row { min-width:0; display:flex; align-items:center; gap:8px; padding:4px 6px; border-radius:6px; cursor:pointer; color:var(--ink); }
 .ping-row:hover { background:var(--card); }
+.ping-pick .st { --st-ring:var(--chip); }
+.ping-row:hover .st, .ping-result:hover .st { --st-ring:var(--card); }
 .ping-row img, .ping-av { width:22px; height:22px; border-radius:50%; object-fit:cover; flex:none; display:grid; place-items:center;
   background:var(--line); font-size:11px; font-weight:700; }
 .ping-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -348,6 +363,15 @@ main { --cols:99; --gap:clamp(10px, 1.2vw, 16px); display:grid; gap:var(--gap);
 #profile.show { opacity:1; pointer-events:auto; transform:none; transition:opacity .12s, transform .12s; }
 .pf-banner { height:72px; background:var(--accent) center/cover no-repeat; }
 .pf-avatar { width:80px; height:80px; border-radius:50%; border:6px solid #111214; margin:-46px 0 0 12px; display:block; object-fit:cover; background:#2b2d31; }
+/* The status on the profile: a big dot cut into the picture's border, and in words under the name */
+.st.pf-st { display:flex; width:fit-content; margin:-46px 0 0 12px; --st:16px; --st-ring:#111214; }
+.st.pf-st .pf-avatar { margin:0; }
+.st.pf-st::after { right:4px; bottom:4px; box-shadow:0 0 0 4px var(--st-ring); }
+.pf-stl { font-size:13px; color:#b5bac1; margin-top:2px; }
+.pf-stl[data-status="online"]::before { content:"Online"; }
+.pf-stl[data-status="idle"]::before { content:"Idle"; }
+.pf-stl[data-status="dnd"]::before { content:"Do Not Disturb"; }
+.pf-stl[data-status="offline"]::before { content:"Offline"; }
 .pf-body { padding:4px 16px 16px; display:flex; flex-direction:column; gap:12px; }
 .pf-name { font-size:20px; font-weight:700; line-height:1.2; }
 .pf-user { font-size:14px; color:#b5bac1; }
@@ -778,6 +802,10 @@ function findGenre() {
 }
 
 const person = (id, name) => USERS[id] || { name: name || "Unknown" };
+// The same face with its Discord status dot (none for someone who left the server);
+// people found in "Ping to play" who aren't in the catalog have theirs from the member list
+const withStatus = (id, face) => { const s = USERS[id]?.status ?? MEMBERS?.[id]?.status;
+  return `<span class="st" data-sid="${esc(id)}"${s ? ` data-status="${esc(s)}"` : ""}>${face}</span>`; };
 function avatar(id, name) {
   const p = person(id, name);
   const attrs = `class="av" data-user="${esc(id)}" data-name="${esc(p.name)}" aria-label="${esc(p.name)}"`;
@@ -866,9 +894,11 @@ function profileHtml(id, fallbackName, game) {
     ? `<button class="pf-btn tag" data-user="${esc(id)}" data-id="${game.id}" title="Pings ${esc(p.name)} about ${esc(game.title)}">${icon("bell")}Tag for ${esc(game.title)}</button>` : "";
   const message = self ? "" : `<a class="pf-btn" href="https://discord.com/users/${esc(id)}" target="_blank" rel="noopener">${icon("message")}Message</a>`;
   return `<div class="pf-banner" style="${banner}"></div>
-    ${p.avatar ? `<img class="pf-avatar" src="${esc(imgUrl(p.avatar))}" alt="">` : `<div class="pf-avatar"></div>`}
+    <span class="st pf-st" data-sid="${esc(id)}"${p.status ? ` data-status="${esc(p.status)}"` : ""}>${
+      p.avatar ? `<img class="pf-avatar" src="${esc(imgUrl(p.avatar))}" alt="">` : `<div class="pf-avatar"></div>`}</span>
     <div class="pf-body">
-      <div><div class="pf-name">${esc(p.name)}</div>${p.username ? `<div class="pf-user">${esc(p.username)}</div>` : ""}</div>
+      <div><div class="pf-name">${esc(p.name)}</div>${p.username ? `<div class="pf-user">${esc(p.username)}</div>` : ""}${
+        p.status ? `<div class="pf-stl" data-sid="${esc(id)}" data-status="${esc(p.status)}"></div>` : ""}</div>
       <div class="pf-box">
         <div><div class="pf-h">Game catalog</div><div class="pf-filters">${personButton("added", id, added)}${personButton("wants", id, wants)}</div>
           ${topWanted ? `<div class="pf-sub">Their picks most others want too</div><div class="pf-games">${topWanted}</div>` : ""}</div>
@@ -1137,7 +1167,7 @@ function ratersHtml(e) {
     : !verified ? "None verified as played" : verified === e.ratings.length ? `All ${verified} verified as played`
     : `${verified} of ${e.ratings.length} verified as played`}</div><div class="rt-list">${[...e.ratings].sort((a, b) => b.stars - a.stars).map((r) => {
       const p = person(r.id);
-      return `<div class="rt-row">${face(p)}<span class="rt-who"><span class="rt-name">${esc(p.name)}</span>${
+      return `<div class="rt-row">${withStatus(r.id, face(p))}<span class="rt-who"><span class="rt-name">${esc(p.name)}</span>${
         r.played ? playedBadge(esc(proof(r))) : ""}</span><span class="rt-stars" aria-label="${r.stars} of 5">${stars(r.stars)}</span></div>`;
     }).join("")}</div>`;
 }
@@ -1147,7 +1177,7 @@ function refundersHtml(e) {
     : `<span class="rt-av">${esc((p.name || "?")[0].toUpperCase())}</span>`;
   return `<div class="rt-head">${icon("receipt-refund").replace('class="i"', 'class="i rf"')}Refunded on Steam by</div>
     <div class="rt-list">${e.refunds.map((r) => { const p = person(r.id, r.name);
-      return `<div class="rt-row">${face(p)}<span class="rt-who"><span class="rt-name">${esc(p.name)}</span></span></div>`; }).join("")}</div>
+      return `<div class="rt-row">${withStatus(r.id, face(p))}<span class="rt-who"><span class="rt-name">${esc(p.name)}</span></span></div>`; }).join("")}</div>
     ${CAN_WANT ? `<div class="rt-hint">Mark yours in the status menu</div>` : ""}`;
 }
 // ...and for a card's "+N": everyone in that group, or all the game's tags (click one to filter by it)
@@ -1156,10 +1186,11 @@ function moreHtml(e, kind) {
     : `<span class="rt-av">${esc((p.name || "?")[0].toUpperCase())}</span>`;
   if (kind === "tags") return `<div class="rt-head">${icon("tags").replace('class="i"', 'class="i rf"')}All ${tagsOf(e).length} tags</div>
     <div class="rt-chips">${tagsOf(e).map(chipHtml).join("")}</div><div class="rt-hint">Click a tag to show its games</div>`;
-  const list = { playing: e.players, played: playedNotPlaying(e), refunds: e.refunds, wants: e.interested }[kind] || [];
+  const list = { added: e.added_by ? [{ id: e.added_by, name: e.added_by_name }] : [], playing: e.players,
+                 played: playedNotPlaying(e), refunds: e.refunds, wants: e.interested }[kind] || [];
   return `<div class="rt-head">${esc(PEOPLE[kind][1])} · ${list.length}</div>
     <div class="rt-list">${list.map((r) => { const p = person(r.id, r.name);
-      return `<div class="rt-row">${face(p)}<span class="rt-who"><span class="rt-name">${esc(p.name)}</span></span></div>`; }).join("")}</div>
+      return `<div class="rt-row">${withStatus(r.id, face(p))}<span class="rt-who"><span class="rt-name">${esc(p.name)}</span></span></div>`; }).join("")}</div>
     ${kind === "played" && beforeRule(e) ? `<div class="rt-hint">${OLD_PLAYED}</div>` : ""}`;
 }
 let ratersPinned = false;  // a "+N" list opened by a click stays open while the pointer moves to it
@@ -1188,7 +1219,7 @@ function hideRaters() {
 }
 document.addEventListener("mouseover", (ev) => {
   if (ratersPinned) return;
-  const pill = ev.target.closest(".rating-pill, .badge.refund, .pp-more, .chip-more");
+  const pill = ev.target.closest(".rating-pill, .badge.refund, .pp-more, .chip-more, .pp-l[data-list]");
   if (pill === ratersFor) return;
   hideRaters();
   if (pill) ratersTimer = setTimeout(() => showRaters(pill), 200);
@@ -1196,7 +1227,7 @@ document.addEventListener("mouseover", (ev) => {
 // Touch: a tap on the refund badge or a "+N" opens the list instead of opening the game; a tap elsewhere closes it.
 // A clicked list stays open, so its tags can be clicked.
 document.addEventListener("click", (ev) => {
-  const pill = ev.target.closest(".badge.refund, .pp-more, .chip-more");
+  const pill = ev.target.closest(".badge.refund, .pp-more, .chip-more, .pp-l[data-list]");
   if (pill) {
     ev.preventDefault(); ev.stopPropagation();
     if (pill !== ratersFor || !raters.classList.contains("show")) { hideRaters(); showRaters(pill); }
@@ -1433,7 +1464,7 @@ if (BROWSER_SIGNIN) {
 const pingButton = (e) => `<button class="ping" data-id="${e.id}" title="Ping people to play ${esc(e.title)}">${icon("speakerphone")}Ping</button>`;
 // The list starts with everyone who wants to play it (ticked); anyone else can be added with the search.
 const pingFace = (p) => p.avatar ? `<img src="${esc(imgUrl(p.avatar))}" alt="">` : `<span class="ping-av">${esc((p.name || "?")[0])}</span>`;
-const pingRow = (id) => `<label class="ping-row"><input type="checkbox" value="${esc(id)}" checked>${pingFace(person(id))}
+const pingRow = (id) => `<label class="ping-row"><input type="checkbox" value="${esc(id)}" checked>${withStatus(id, pingFace(person(id)))}
   <span class="ping-name">${esc(person(id).name)}</span></label>`;
 const pingList = (e) => [...new Set([...e.players, ...e.interested].map((p) => p.id))]
   .filter((id) => id !== me).map(pingRow).join("");
@@ -1460,7 +1491,7 @@ function pingSearch(box) {
       [u.name, u.username].some((n) => (n || "").toLowerCase().includes(q)))
     .slice(0, 5);
   box.querySelector(".ping-results").innerHTML = q && !found.length ? `<span class="ping-empty">Nobody found</span>`
-    : found.map(([id, u]) => `<button class="ping-result" data-user="${esc(id)}">${pingFace(u)}<span class="ping-name">${esc(u.name)}</span></button>`).join("");
+    : found.map(([id, u]) => `<button class="ping-result" data-user="${esc(id)}">${withStatus(id, pingFace(u))}<span class="ping-name">${esc(u.name)}</span></button>`).join("");
 }
 function pingCount(box) {
   const n = box.querySelectorAll(".ping-row input:checked").length, yes = box.querySelector(".ping-yes");
@@ -1703,7 +1734,10 @@ function measureFit() {
 // Lines a row of pieces takes, wrapped like the browser wraps them
 function linesFor(widths, room, gap) {
   let lines = 1, x = -gap;
-  for (const w of widths) { if (x > 0 && x + gap + w > room + .5) { lines++; x = w; } else x += gap + w; }
+  for (const w of widths) {
+    if (w > room + .5) lines += 100;  // wider than the card: never a fit, however few lines it takes
+    if (x > 0 && x + gap + w > room + .5) { lines++; x = w; } else x += gap + w;
+  }
   return lines;
 }
 // How many tags fit on one line, leaving room for the "+N"
@@ -1751,7 +1785,9 @@ function peopleLine(e) {
   const shown = facesThatFit(groups);
   return `<div class="people">${groups.map((g, i) => {
     const hidden = g.list.length - shown[i];
-    return `<span class="pp"><span class="pp-l" title="${g.key === "playedOld" ? OLD_PLAYED : PEOPLE[g.kind][1]}">${
+    const list = `data-id="${e.id}" data-list="${g.kind}"`;
+    return `<span class="pp"><span class="pp-l" ${g.list.length ? list
+      : `title="${g.key === "playedOld" ? OLD_PLAYED : PEOPLE[g.kind][1]}"`}>${
       g.key === "playedOld" ? "Played before the rule" : PEOPLE[g.kind][0]}</span>${g.name ? `<span class="pp-name">${esc(g.name)}</span>` : ""}${
       g.old ? `<span class="pp-old" title="${OLD_PLAYED}">${icon("clock")}</span>` : ""}${
       g.list.slice(0, shown[i]).map((p) => avatar(p.id, p.name)).join("")}${hidden ? `<button class="pp-more" data-id="${e.id}"
@@ -2107,6 +2143,18 @@ if (CONFIG.live) {
       checking = false;
     }
   }, 3000);
+  // Who's online changes without the catalog changing: the dots are fetched on their own, and set in place
+  setInterval(async () => {
+    if (document.hidden) return;
+    try {
+      const status = await (await fetch("/status.json" + location.search)).json();
+      for (const [id, s] of Object.entries(status)) if (USERS[id]) USERS[id].status = s;
+      document.querySelectorAll("[data-sid]").forEach((el) => {
+        const s = status[el.dataset.sid];
+        if (s && el.dataset.status !== s) el.dataset.status = s;
+      });
+    } catch {}
+  }, 20000);
 }
 
 if (IN_DISCORD) {

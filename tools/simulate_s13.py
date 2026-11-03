@@ -67,6 +67,10 @@ class Member:
     def __init__(self, uid: int):
         self.id, self.display_name, self.name, self.bot = uid, NAMES.get(uid, f"Player {str(uid)[-4:]}"), "", False
 
+    @property
+    def status(self):  # made up, and changing every 30 seconds, so the dots on the faces can be seen updating
+        return ("online", "idle", "dnd", "offline", "offline")[(self.id // 7 + int(time.time() // 30)) % 5]
+
 
 class Guild:
     id, name, icon = GUILD_ID, "Simulation", None
