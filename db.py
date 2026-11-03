@@ -128,6 +128,21 @@ CREATE TABLE IF NOT EXISTS played_answers (
     at        INTEGER NOT NULL,
     PRIMARY KEY (entry_id, user_id)
 );
+-- "Get on the game" (#GOTG): the bot's daily afternoon post (gotg.py), the games it picked and who pressed "I'm in"
+CREATE TABLE IF NOT EXISTS gotg_posts (
+    day        TEXT    PRIMARY KEY,           -- local date, e.g. '2026-11-03'
+    guild_id   INTEGER NOT NULL,
+    channel_id INTEGER,
+    message_id INTEGER,
+    picks      TEXT    NOT NULL               -- JSON [[entry id, 'owned' | 'buy'], ...]
+);
+CREATE TABLE IF NOT EXISTS gotg_in (
+    day       TEXT    NOT NULL,
+    entry_id  INTEGER NOT NULL,
+    user_id   INTEGER NOT NULL,
+    at        INTEGER NOT NULL,
+    PRIMARY KEY (day, entry_id, user_id)
+);
 -- Small bits of bot state, e.g. when it was last online (to catch up on what it missed)
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
@@ -525,6 +540,23 @@ class Database:
                               [(user_id, appid, m, last) for appid, (m, last) in games.items() if m])
         self.conn.commit()
 
+    def owners(self) -> dict[int, set[int]]:
+        """Steam app id -> who has it in their linked Steam library."""
+        owners: dict[int, set[int]] = {}
+        for uid, appid in self.conn.execute("SELECT user_id, appid FROM steam_owned"):
+            owners.setdefault(appid, set()).add(uid)
+        return owners
+
+    def last_played(self) -> dict[int, int]:
+        """Entry id -> the last time anyone was seen playing it (Discord) or played it (Steam)."""
+        rows = self.conn.execute("""
+            SELECT entry_id, MAX(at) FROM (
+                SELECT entry_id, last_seen AS at FROM seen_games
+                UNION ALL SELECT entry_id, last_seen FROM tracked_playtime
+                UNION ALL SELECT e.id, p.last_played FROM entries e JOIN steam_playtime p ON e.key = 'steam:' || p.appid)
+            WHERE at IS NOT NULL GROUP BY entry_id""")
+        return dict(rows.fetchall())
+
     def owned(self, user_id: int) -> set[int]:
         return {r[0] for r in self.conn.execute("SELECT appid FROM steam_owned WHERE user_id = ?", (user_id,))}
 
@@ -597,6 +629,34 @@ class Database:
     def mark_free_posted(self, guild_id: int, appid: int, when: int):
         self.conn.execute("INSERT OR REPLACE INTO free_posts VALUES (?, ?, ?)", (guild_id, appid, when))
         self.conn.commit()
+
+    # -- Get on the game (#GOTG) ------------------------------------------
+
+    def gotg_post(self, day: str) -> dict | None:
+        row = self.conn.execute("SELECT * FROM gotg_posts WHERE day = ?", (day,)).fetchone()
+        return {**dict(row), "picks": json.loads(row["picks"])} if row else None
+
+    def save_gotg_post(self, day: str, guild_id: int, picks: list[tuple[int, str]],
+                       channel_id: int | None = None, message_id: int | None = None):
+        self._write_quietly("INSERT OR REPLACE INTO gotg_posts VALUES (?, ?, ?, ?, ?)",
+                            (day, guild_id, channel_id, message_id, json.dumps(picks)))
+
+    def gotg_posted_since(self, day: str) -> set[int]:
+        """Entry ids picked on `day` or later (they rest a while before they're picked again)."""
+        rows = self.conn.execute("SELECT picks FROM gotg_posts WHERE day >= ?", (day,))
+        return {entry_id for (picks,) in rows for entry_id, _ in json.loads(picks)}
+
+    def gotg_in(self, day: str, entry_id: int) -> list[int]:
+        """Who pressed "I'm in" for this game on `day`, first first."""
+        rows = self.conn.execute("SELECT user_id FROM gotg_in WHERE day = ? AND entry_id = ? ORDER BY at, rowid", (day, entry_id))
+        return [r[0] for r in rows]
+
+    def set_gotg_in(self, day: str, entry_id: int, user_id: int, on: bool, when: int):
+        if on:
+            self._write_quietly("INSERT OR IGNORE INTO gotg_in VALUES (?, ?, ?, ?)", (day, entry_id, user_id, when))
+        else:
+            self._write_quietly("DELETE FROM gotg_in WHERE day = ? AND entry_id = ? AND user_id = ?",
+                                (day, entry_id, user_id))
 
     def get_meta(self, key: str) -> str | None:
         row = self.conn.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()

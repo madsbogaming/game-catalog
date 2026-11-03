@@ -19,7 +19,7 @@ import shutil
 import sys
 import tempfile
 import time
-from datetime import datetime
+from datetime import date, datetime
 from urllib.parse import quote
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -111,7 +111,10 @@ def markdown(text: str) -> str:
         line = re.sub(r"&lt;t:(\d+):([DR])&gt;", lambda m: datetime.fromtimestamp(int(m[1])).strftime("%d %B %Y"), line)
         line = re.sub(r"\[([^\]]+)\]\((https?://[^)]+)\)", r'<a href="\2">\1</a>', line)
         line = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", line)
-        if line.startswith("## "):
+        line = re.sub(r"&lt;@(\d+)&gt;", lambda m: f'<span class="at">@{html.escape(Member(int(m[1])).display_name.split(" ")[0])}</span>', line)
+        if line.startswith("### "):
+            line = f"<h4>{line[4:]}</h4>"
+        elif line.startswith("## "):
             line = f"<h3>{line[3:]}</h3>"
         elif line.startswith("-# "):
             line = f"<small>{line[3:]}</small>"
@@ -137,7 +140,8 @@ def draw(item, uid: int) -> str:
         cid = button.custom_id or ""
         href = (button.url if button.url else f"/sim/discord/{uid}?open=1" if cid == "played-check"
                 else f"/sim/as/{uid}" if cid == "open-catalog"
-                else f"/sim/discord/{uid}/answer/{cid.split(':')[1]}/{cid.split(':')[2]}" if cid.startswith("played:") else "#")
+                else f"/sim/discord/{uid}/answer/{cid.split(':')[1]}/{cid.split(':')[2]}" if cid.startswith("played:")
+                else f"/sim/gotg/{uid}/in/{cid.split(':')[2]}" if cid.startswith("gotg:") and not button.disabled else "#")
         style = {discord.ButtonStyle.success: "green", discord.ButtonStyle.primary: "blue"}.get(button.style, "grey")
         return f'<a class="btn {style}" href="{html.escape(href)}">{html.escape(button.label or "")}</a>'
     return ""
@@ -147,7 +151,8 @@ PAGE = """<!doctype html><meta charset="utf-8"><meta name="viewport" content="wi
 <title>S13 simulation</title><style>
 body {{ background:#313338; color:#dbdee1; font:15px/1.45 system-ui, sans-serif; margin:0; padding:24px; }}
 main {{ max-width:720px; margin:0 auto; }} a {{ color:#00a8fc; }} h1 {{ font-size:22px; color:#fff; }}
-h3 {{ margin:0 0 4px; font-size:18px; color:#fff; }} small {{ color:#949ba4; font-size:12px; }}
+h3 {{ margin:0 0 4px; font-size:18px; color:#fff; }} h4 {{ margin:4px 0 0; font-size:16px; color:#fff; }}
+.at {{ background:#5865f24d; color:#c9cdfb; border-radius:3px; padding:0 2px; }} small {{ color:#949ba4; font-size:12px; }}
 .banner {{ background:#f0b23222; border:1px solid #f0b232; border-radius:8px; padding:10px 14px; margin-bottom:18px; }}
 .who {{ color:#949ba4; font-size:13px; margin:18px 0 6px; }}
 .box {{ background:#2b2d31; border-left:4px solid; border-radius:4px; padding:12px 16px; }}
@@ -170,6 +175,8 @@ class SimSite(CatalogSite):
         app.router.add_get("/sim/as/{uid}", self.sim_as)
         app.router.add_get("/sim/discord/{uid}", self.sim_discord)
         app.router.add_get("/sim/discord/{uid}/answer/{entry}/{answer}", self.sim_answer)
+        app.router.add_get("/sim/gotg/{uid}", self.sim_gotg)
+        app.router.add_get("/sim/gotg/{uid}/in/{entry}", self.sim_gotg_in)
         return app
 
     async def viewer(self, request):
@@ -188,7 +195,8 @@ class SimSite(CatalogSite):
     async def sim_home(self, request):
         progress, _ = B.bot.played_rule_state(GUILD_ID)
         rows = "".join(f'<tr><td>{html.escape(name)}</td><td>{n} to answer</td><td><a href="/sim/as/{uid}">Catalog as them</a></td>'
-                       f'<td><a href="/sim/discord/{uid}">Discord as them</a></td></tr>' for uid, name, n in people())
+                       f'<td><a href="/sim/discord/{uid}">Discord as them</a></td>'
+                       f'<td><a href="/sim/gotg/{uid}">#GOTG as them</a></td></tr>' for uid, name, n in people())
         body = (f"<h1>Who do you want to be?</h1><p>{progress[0]} of {progress[1]} Played games have "
                 f"{B.PLAYERS_NEEDED} players right now. Answer as a few people and watch games reach "
                 f"{B.PLAYERS_NEEDED}.</p><table>{rows}</table>")
@@ -216,6 +224,24 @@ class SimSite(CatalogSite):
         body += (f'<div class="who">The reminder 3 days before the deadline (only sent if games are still short)</div>'
                  f'{"".join(draw(c, uid) for c in B.played_rule_reminder_view(left).children)}' if left else "")
         return web.Response(text=PAGE.format(body=body), content_type="text/html")
+
+    async def sim_gotg(self, request, ping: str | None = None):
+        """Today's #GOTG post as the bot would send it at 16:30 (picked now on the copy if it hasn't been yet)."""
+        uid, day = int(request.match_info["uid"]), date.today().isoformat()
+        if not db.gotg_post(day):
+            db.save_gotg_post(day, GUILD_ID, B.gotg_picks(GUILD_ID, date.today()))
+        name = html.escape(Member(uid).display_name)
+        body = (f'<p><a href="/sim">← Pick someone else</a> · Press “I\'m in” as {name}, then as two others '
+                f'to see the ping</p><div class="who">The 16:30 post in #{B.GOTG_CHANNEL_NAME} (pings nobody)</div>'
+                f'{"".join(draw(c, uid) for c in B.gotg_view(day).children)}')
+        if ping:
+            body += f'<div class="who">The bot\'s reply (pings the people after “Join them”)</div><div class="box" style="border-color:#5865f2"><p>{markdown(ping)}</p></div>'
+        return web.Response(text=PAGE.format(body=body), content_type="text/html")
+
+    async def sim_gotg_in(self, request):
+        uid, entry = int(request.match_info["uid"]), int(request.match_info["entry"])
+        text, _ = B.gotg_press(date.today().isoformat(), entry, Member(uid))
+        return await self.sim_gotg(request, text)
 
     async def sim_answer(self, request):
         uid, entry, answer = int(request.match_info["uid"]), int(request.match_info["entry"]), request.match_info["answer"]

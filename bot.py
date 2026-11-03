@@ -7,7 +7,7 @@ import logging
 import os
 import random
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import aiohttp
 import discord
@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 
 import achievements
 import sources
+import gotg
 from catalog_html import render_catalog
 from db import PLAYERS_NEEDED, STATUSES, Database
 from web import CatalogSite
@@ -61,6 +62,13 @@ PLAYED_RULE_CHANNEL_ID = int(os.getenv("PLAYED_RULE_CHANNEL_ID") or ACHIEVEMENTS
 PLAYED_RULE_DEADLINE = int(datetime.strptime(os.getenv("PLAYED_RULE_DEADLINE") or "2026-11-15", "%Y-%m-%d")
                            .replace(hour=23, minute=59).timestamp())
 CATCH_UP_PAGE = 5  # games per "Have you played these?" message (Discord allows 40 parts in one)
+# "Get on the game" (#GOTG): the daily post of games to play together tonight (gotg.py), when (local time) and where.
+# Without GOTG_CHANNEL_ID it goes in the channel named GOTG_CHANNEL_NAME; posting starts no later than GOTG_LATEST_HOUR
+# (if the bot was off at GOTG_TIME), and its "I'm in" buttons last until midnight.
+GOTG_CHANNEL_ID = int(os.getenv("GOTG_CHANNEL_ID") or 0)
+GOTG_CHANNEL_NAME = os.getenv("GOTG_CHANNEL_NAME", "madsbo-wacky-gamerweekend")
+GOTG_TIME = datetime.strptime(os.getenv("GOTG_TIME") or "16:30", "%H:%M").time()
+GOTG_LATEST_HOUR = 20
 BADGES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "badges")
 
 log = logging.getLogger("gamebot")
@@ -422,6 +430,7 @@ class GameBot(commands.Bot):
         self.add_dynamic_items(ReelGameButton)  # "which game is this reel?" buttons on older messages
         self.add_dynamic_items(OpenCatalogButton)  # "Open the catalog" on the achievements launch post
         self.add_dynamic_items(CheckPlayedButton, PlayedAnswerButton)  # "Have you played these?"
+        self.add_dynamic_items(GotgInButton)  # "I'm in" on the #GOTG posts
         await self.site.start()
         if FREE_GAMES_CHANNEL_ID:
             self.post_free_games.start()
@@ -434,6 +443,7 @@ class GameBot(commands.Bot):
         if ACHIEVEMENTS_CHANNEL_ID:
             self.check_achievements.start()
         self.played_rule.start()
+        self.post_gotg.start()
         if PUBLIC_URL:  # fixed address: nothing to start, and the Activity URL mapping never changes
             self.site.public_url = PUBLIC_URL
             log.info("Public catalog URL: %s", PUBLIC_URL)
@@ -766,6 +776,45 @@ class GameBot(commands.Bot):
     async def _played_rule_wait(self):
         await self.wait_until_ready()
         await asyncio.sleep(90)  # after the startup catch-up and the first Steam hours
+
+    # -- Get on the game (#GOTG) --
+
+    def gotg_channel(self):
+        if GOTG_CHANNEL_ID:
+            return self.get_channel(GOTG_CHANNEL_ID)
+        guild = self.get_guild(GUILD_ID) or next(iter(self.guilds), None)
+        return discord.utils.get(guild.text_channels, name=GOTG_CHANNEL_NAME) if guild else None
+
+    @tasks.loop(minutes=5)
+    async def post_gotg(self):
+        """Every day at GOTG_TIME: the #GOTG post (once a day; later the same day if the bot was off then)."""
+        try:
+            now = datetime.now()
+            day = now.date().isoformat()
+            if now.time() < GOTG_TIME or now.hour >= GOTG_LATEST_HOUR or self.db.gotg_post(day):
+                return
+            channel = self.gotg_channel()
+            if channel is None:
+                log.warning("No #GOTG channel: set GOTG_CHANNEL_ID, or name a channel %s", GOTG_CHANNEL_NAME)
+                return
+            picks = gotg_picks(channel.guild.id, now.date())
+            if not picks:
+                self.db.save_gotg_post(day, channel.guild.id, [])
+                log.info("No games for #GOTG today")
+                return
+            self.db.save_gotg_post(day, channel.guild.id, picks)  # saved first: never posted twice
+            message = await channel.send(view=gotg_view(day))
+            self.db.save_gotg_post(day, channel.guild.id, picks, channel.id, message.id)
+            log.info("Posted #GOTG: %s", ", ".join(self.db.get(eid)["title"] for eid, _ in picks))
+        except Exception:
+            log.exception("#GOTG post failed")
+
+    @post_gotg.before_loop
+    async def _gotg_wait(self):
+        await self.wait_until_ready()
+        channel = self.gotg_channel()
+        log.info("#GOTG posts at %s in %s", f"{GOTG_TIME:%H:%M}", f"#{channel.name}" if channel else "no channel (not found)")
+        await asyncio.sleep(120)  # after the startup catch-up and the first Steam libraries
 
     async def ensure_battlenet(self, guild_id: int, key: str, url: str, origin: dict) -> tuple[dict, bool]:
         """Find or add a Battle.net game. Blizzard has no store API with game modes, so the online-play check is
@@ -1392,6 +1441,106 @@ class OpenCatalogButton(ui.DynamicItem[ui.Button], template=r"open-catalog"):
 
     async def callback(self, interaction: discord.Interaction):
         await open_catalog(interaction)
+
+
+def gotg_picks(guild_id: int, today: date) -> list[list]:
+    """Today's #GOTG games as stored: [[entry id, "owned" | "buy"]]. Games posted in the last REST_DAYS days rest."""
+    rest_from = (today - timedelta(days=gotg.REST_DAYS - 1)).isoformat()
+    return [[e["id"], group] for e, group in gotg.pick(bot.db, guild_id, today.isoformat(), rest_from)]
+
+
+def gotg_line(e: dict, group: str, ins: list[int], owners: dict[int, set[int]]) -> str:
+    """One game in the #GOTG post: what it is, who has it or wants it, and who's in tonight."""
+    kind = "Co-op" if e["coop"] else "Multiplayer"
+    if group == "owned":
+        stars = [s for _, s in bot.db.ratings(e["id"])]
+        last = bot.db.last_played().get(e["id"])
+        bits = [f"{len(owners.get(gotg.appid(e), ()))} of you own it", kind,
+                stars and f"our rating {sum(stars) / len(stars):.1f}", last and f"last played <t:{last}:R>"]
+    else:
+        price = "Free" if e["price_cents"] == 0 else e["price_text"] and (
+            f"{e['price_text']} (−{e['discount_pct']}%)" if e["discount_pct"] else e["price_text"])
+        wants = [uid for uid, _ in bot.db.interested(e["id"])]
+        bits = [price, kind, e["review_pct"] is not None and f"{e['review_pct']}% on Steam",
+                f"{len(wants)} want to play: " + " ".join(f"<@{uid}>" for uid in wants[:8])]
+    line = f"**{md_link(e['title'], e['url'])}**\n-# " + " · ".join(b for b in bits if b)
+    if ins:
+        line += "\nIn tonight: " + " ".join(f"<@{uid}>" for uid in ins)
+    return line
+
+
+def gotg_view(day: str) -> ui.LayoutView:
+    """The #GOTG post of `day`, with who's in so far (redrawn on every "I'm in"). Pings nobody."""
+    post, owners = bot.db.gotg_post(day), bot.db.owners()
+    over = day != date.today().isoformat()
+    items: list[ui.Item] = [ui.TextDisplay(
+        "## Get on the game #GOTG\nWho's up for a game tonight? Press **I'm in** on the ones you'd play. Once "
+        f"{gotg.PLAYERS_TO_PING} of you are in on the same game, the bot pings the others who have it or want it.")]
+    for group, heading in (("owned", "### Already in your libraries"), ("buy", "### Worth buying")):
+        games = [e for eid, g in post["picks"] if g == group and (e := bot.db.get(eid))]
+        if games:
+            items.append(ui.TextDisplay(heading))
+        for e in games:
+            ins = bot.db.gotg_in(day, e["id"])
+            text = ui.TextDisplay(gotg_line(e, group, ins, owners))
+            items.append(ui.Section(text, accessory=ui.Thumbnail(e["image"])) if e["image"] else text)
+            items.append(ui.ActionRow(GotgInButton(day, e["id"], len(ins), over)))
+    items.append(ui.ActionRow(OpenCatalogButton()))
+    items.append(ui.TextDisplay(f"-# A new one every day at {GOTG_TIME:%H:%M} · “Own it” goes by the Steam libraries "
+                                f"linked to Discord ({len({u for us in owners.values() for u in us})} people)"))
+    view = ui.LayoutView(timeout=None)
+    view.add_item(ui.Container(*items, accent_colour=ACCENT))
+    return view
+
+
+def gotg_press(day: str, entry_id: int, user) -> tuple[str | None, list[int]]:
+    """`user` pressed "I'm in" (again = out). When that makes PLAYERS_TO_PING, the first time for this game today:
+    (the message pinging the others who own it or want it, who to ping). Otherwise (None, [])."""
+    ins = bot.db.gotg_in(day, entry_id)
+    joining = user.id not in ins
+    bot.db.set_gotg_in(day, entry_id, user.id, joining, int(time.time()))
+    entry = bot.db.get(entry_id)
+    log.info("%s is %s for %s (#GOTG)", user.display_name, "in" if joining else "out", entry["title"])
+    ins = bot.db.gotg_in(day, entry_id)
+    pinged = f"gotg_pinged:{day}:{entry_id}"
+    if not joining or len(ins) < gotg.PLAYERS_TO_PING or bot.db.get_meta(pinged):
+        return None, []
+    bot.db.set_meta(pinged, int(time.time()))
+    group = dict(bot.db.gotg_post(day)["picks"]).get(entry_id)
+    others = {uid for uid, _ in bot.db.interested(entry_id)}
+    if group == "owned":
+        others |= bot.db.owners().get(gotg.appid(entry), set())
+    others = sorted(others - set(ins))
+    text = (f"**{len(ins)} of you are in for {entry['title']} tonight:** " + " · ".join(f"<@{uid}>" for uid in ins)
+            + ("\nJoin them: " +" · ".join(f"<@{uid}>" for uid in others) if others else ""))
+    return text, others
+
+
+class GotgInButton(ui.DynamicItem[ui.Button], template=r"gotg:(?P<day>\d{4}-\d{2}-\d{2}):(?P<entry>\d+)"):
+    """"I'm in" on a #GOTG post, for one game. Works the day of the post; dynamic, so it survives restarts."""
+
+    def __init__(self, day: str, entry_id: int, count: int = 0, over: bool = False):
+        label = "Over" if over else f"I'm in · {count}" if count else "I'm in"
+        super().__init__(ui.Button(label=label, style=discord.ButtonStyle.success, disabled=over,
+                                   custom_id=f"gotg:{day}:{entry_id}"))
+        self.day, self.entry_id = day, entry_id
+
+    @classmethod
+    async def from_custom_id(cls, interaction: discord.Interaction, item: ui.Button, match):
+        return cls(match["day"], int(match["entry"]))
+
+    async def callback(self, interaction: discord.Interaction):
+        post = bot.db.gotg_post(self.day)
+        if self.day != date.today().isoformat() or not post or self.entry_id not in dict(post["picks"]):
+            await interaction.response.send_message(
+                f"This #GOTG is over. A new one comes at {GOTG_TIME:%H:%M}.", ephemeral=True)
+            return
+        text, ping = gotg_press(self.day, self.entry_id, interaction.user)
+        await interaction.response.edit_message(view=gotg_view(self.day))
+        if text:
+            await interaction.message.reply(text, allowed_mentions=discord.AllowedMentions(
+                users=[discord.Object(uid) for uid in ping]), mention_author=False)
+            log.info("#GOTG: %d in, pinged %d", gotg.PLAYERS_TO_PING, len(ping))
 
 
 @bot.tree.command(description="Open the interactive game catalog")
