@@ -1,0 +1,36 @@
+name: Bug
+description: Something in the bot or the catalog doesn't work the way it should
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, and what went wrong?
+      placeholder: I posted a Steam link for Lethal Company in #games and the bot said it's singleplayer.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should have happened?
+      placeholder: It should have been added to the catalog, since it has online co-op.
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where?
+      options:
+        - A post or reply from the bot in Discord
+        - A slash command
+        - /catalog in Discord
+        - The catalog in a browser
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots or links
+      description: Drag a screenshot in here, or paste a link to the Discord message.

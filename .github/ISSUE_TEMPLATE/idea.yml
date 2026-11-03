@@ -1,0 +1,19 @@
+name: Idea
+description: A new feature or a way to make the bot better
+labels: [idea]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What's the idea?
+      placeholder: Let /random skip games I've already refunded.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why would it help?
+      description: What would it make easier or more fun for the server?
+      placeholder: It keeps picking games I already know I don't like.
+    validations:
+      required: true
