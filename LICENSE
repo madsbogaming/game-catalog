@@ -1,0 +1,48 @@
+Mads-bo-wacky Game Catalog bot - Source-Available License
+
+Copyright (c) 2026 Mads Bo Ringgaard. All rights reserved.
+
+1. Viewing
+   You may view and read this source code for reference.
+
+2. Contributing
+   You may fork, clone, and modify this repository, and run a local
+   instance of the software on a private test server, solely for the
+   purpose of developing, testing, and submitting contributions (such as
+   pull requests) to the official repository at
+   https://github.com/madsbogaming/mads-bo-wacky.
+
+3. Invited collaborators
+   If the copyright holder has invited you as a collaborator on the
+   official repository, you may also run one instance of the software for
+   a Discord server you own or help run, for as long as you remain a
+   collaborator. This permission is personal: you may not pass it on,
+   sublicense it, or offer the software as a bot for others to add to
+   their servers. The copyright holder may change or remove this section
+   in later versions of this license.
+
+4. Restrictions
+   Except as permitted in sections 2 and 3, you may not copy, modify,
+   distribute, sublicense, host, deploy, or operate this software or any
+   derivative of it, in whole or in part, including as a public or private
+   Discord bot, without prior written permission from the copyright
+   holder.
+
+5. Contributions
+   By submitting a contribution to this repository, you grant the
+   copyright holder a perpetual, worldwide, irrevocable, royalty-free,
+   non-exclusive license to use, modify, distribute, sublicense, and
+   relicense your contribution under any terms. You confirm that you have
+   the right to grant this license and that your contribution is your
+   own original work.
+
+6. Third-party components
+   Some files in this repository are made by others and come with their
+   own licenses, which apply to those files instead of this one. They are
+   listed in THIRD_PARTY_NOTICES.md.
+
+7. No Warranty
+   This software is provided "as is", without warranty of any kind,
+   express or implied. In no event shall the copyright holder be liable
+   for any claim, damages, or other liability arising from the use of
+   this software.

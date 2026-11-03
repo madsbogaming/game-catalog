@@ -19,7 +19,7 @@ Your friends post games in Discord. The bot turns them into one catalog everyone
 
 ## Up and running in 10 minutes
 
-You need Python 3.12 or newer.
+For now the bot is invite-only: setting it up yourself is for invited collaborators (see [License](#license)). You need Python 3.12 or newer.
 
 1. **Create a bot** in the [Discord Developer Portal](https://discord.com/developers/applications) and add it to your server ([step-by-step](docs/GUIDE.md#1-create-the-bot-on-discord)).
 2. **Install it:**
@@ -52,3 +52,7 @@ The **[full guide](docs/GUIDE.md)** covers every feature and command, the in-Dis
 ## Help make it better
 
 Found a bug or have an idea? [Open an issue](https://github.com/madsbogaming/mads-bo-wacky/issues/new/choose). Want to change the code? Start with **[CONTRIBUTING.md](CONTRIBUTING.md)**.
+
+## License
+
+The bot is **source-available, not open source.** You may read the code and run a copy on a private test server to develop contributions. Invited collaborators may also run it for their own server. You may not host your own copy for others or reuse the code elsewhere without written permission. See [LICENSE](LICENSE), and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the parts made by others.

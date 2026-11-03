@@ -65,6 +65,12 @@ When the pull request is merged, the change is on `main`. The real bot picks it 
 - **Pull `main` often** while your branch is open. If Git reports a merge conflict, it means someone changed the same lines. Open the file, keep the right version between the `<<<<<<<` and `>>>>>>>` markers, delete the markers, and commit.
 - **Never commit `.env`, `catalog.db` or `bot.log`.** `.gitignore` already skips them, so don't force them in.
 
+## Your contributions and the license
+
+The bot is source-available under [LICENSE](LICENSE). By opening a pull request you agree to section 5: you keep the rights to your code, and Mads may use it, change it and relicense it, for example if the bot goes open source later. Only send code you wrote yourself.
+
+As an invited collaborator you may also run the bot for a server of your own (section 3). Use your own bot and token for that too, never the real one.
+
 ## Found a bug or have an idea?
 
 [Open an issue](https://github.com/madsbogaming/mads-bo-wacky/issues/new/choose) and pick **Bug** or **Idea**. You don't need to write any code to help.
