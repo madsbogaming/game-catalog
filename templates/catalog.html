@@ -236,6 +236,7 @@ main { --cols:99; --gap:clamp(10px, 1.2vw, 16px); display:grid; gap:var(--gap);
 .chips { display:flex; gap:4px; overflow:hidden; }
 .chip { flex:none; white-space:nowrap; background:var(--chip); border:0; border-radius:999px; padding:2px 9px; font:inherit; font-size:12px; color:inherit; cursor:pointer; }
 .chip-more { font-weight:650; }
+.chips.all { flex-wrap:wrap; }  /* "+N" pressed: every tag, wrapping down the card */
 .chip:hover { outline:1px solid var(--accent); }
 /* Genres & tags menu: tick as many as you like */
 .multi { position:relative; }
@@ -1219,7 +1220,7 @@ function hideRaters() {
 }
 document.addEventListener("mouseover", (ev) => {
   if (ratersPinned) return;
-  const pill = ev.target.closest(".rating-pill, .badge.refund, .pp-more, .chip-more, .pp-l[data-list]");
+  const pill = ev.target.closest(".rating-pill, .badge.refund, .pp-more, .pp-l[data-list]");
   if (pill === ratersFor) return;
   hideRaters();
   if (pill) ratersTimer = setTimeout(() => showRaters(pill), 200);
@@ -1227,7 +1228,15 @@ document.addEventListener("mouseover", (ev) => {
 // Touch: a tap on the refund badge or a "+N" opens the list instead of opening the game; a tap elsewhere closes it.
 // A clicked list stays open, so its tags can be clicked.
 document.addEventListener("click", (ev) => {
-  const pill = ev.target.closest(".badge.refund, .pp-more, .chip-more, .pp-l[data-list]");
+  const more = ev.target.closest(".chip-more");
+  if (more) {  // a card's "+N" tags: show them all in the card (pressed again: back to one line)
+    ev.preventDefault(); ev.stopPropagation();
+    const id = Number(more.dataset.id);
+    openTags.has(id) ? openTags.delete(id) : openTags.add(id);
+    render();
+    return;
+  }
+  const pill = ev.target.closest(".badge.refund, .pp-more, .pp-l[data-list]");
   if (pill) {
     ev.preventDefault(); ev.stopPropagation();
     if (pill !== ratersFor || !raters.classList.contains("show")) { hideRaters(); showRaters(pill); }
@@ -1699,6 +1708,7 @@ function saleEnds(e) {
 // them (hover, or tap on phones). How many fit depends on the screen, so the sizes are measured on a hidden card
 // once per layout (every card in the grid is the same width), and each card then works out its own count. --
 let fit = null;
+const openTags = new Set();  // cards whose "+N" tags were pressed open
 const PEOPLE = { added: ["Added", "Added by"], playing: ["Playing", "Playing now"], played: ["Played", "Played by"],
                  refunds: ["Refunded", "Refunded by"], wants: ["Wants", "Wants to play"] };
 // Who played it, minus anyone in the Playing pill right now (they still count towards Played)
@@ -1819,9 +1829,11 @@ function card(e) {
     e.coop ? `<span>${icon("users")}Co-op</span>` : e.multiplayer && `<span>${icon("users-group")}Multiplayer</span>`,
     releaseText(e),
   ].filter(Boolean).join("");
-  const tags = tagsOf(e), fitTags = tagsThatFit(tags);
-  const chips = tags.slice(0, fitTags).map(chipHtml).join("") + (fitTags < tags.length
-    ? `<button class="chip chip-more" data-id="${e.id}" data-list="tags" aria-label="${tags.length - fitTags} more tags">+${tags.length - fitTags}</button>` : "");
+  const tags = tagsOf(e), fitTags = tagsThatFit(tags), allTags = openTags.has(e.id) && fitTags < tags.length;
+  const chips = allTags
+    ? tags.map(chipHtml).join("") + `<button class="chip chip-more" data-id="${e.id}" aria-expanded="true">Show less</button>`
+    : tags.slice(0, fitTags).map(chipHtml).join("") + (fitTags < tags.length
+      ? `<button class="chip chip-more" data-id="${e.id}" aria-expanded="false" aria-label="${tags.length - fitTags} more tags">+${tags.length - fitTags}</button>` : "");
   // Reels of the game: just the film icon, one per clip, above the line
   const clips = e.clips.map((u, i) => `<a class="clip" href="${esc(u)}" target="_blank" rel="noopener"
     title="Watch clip${e.clips.length > 1 ? ` ${i + 1}` : ""}" aria-label="Watch clip ${i + 1}">${icon("movie")}</a>`).join("");
@@ -1838,7 +1850,7 @@ function card(e) {
     <div class="body">
       <a class="title" href="${esc(gameLink(e))}" target="_blank" rel="noopener">${esc(e.title)}</a>
       <div class="meta">${meta}</div>
-      ${chips && `<div class="chips">${chips}</div>`}
+      ${chips && `<div class="chips${allTags ? " all" : ""}">${chips}</div>`}
       ${clips && `<div class="clips">${clips}</div>`}
       ${CAN_WANT && (["played", "demo"].includes(e.status) || iPlayed(e)) ? rateRow(e) : ""}
       ${e.kind === "instagram" ? `<div class="meta"><span>${icon("help-circle")}Reel not linked to a game yet</span></div>` : ""}
