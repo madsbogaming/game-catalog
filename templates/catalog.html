@@ -2045,7 +2045,7 @@ $("stats").addEventListener("click", (ev) => {
 });
 // Server badge: its icon, or its first letter when it has none
 if (CONFIG.guildIcon) $("server-icon").outerHTML = `<img class="server-icon" src="${esc(imgUrl(CONFIG.guildIcon))}" alt="">`;
-else $("server-icon").textContent = "__GUILD__".trim().charAt(0).toUpperCase();
+else $("server-icon").textContent = CONFIG.guildName.trim().charAt(0).toUpperCase();
 // Arrows beside the heading scroll the feed a card at a time; hidden when everything fits.
 function updateNowNav() {
   const t = $("now-track"), max = t.scrollWidth - t.clientWidth;

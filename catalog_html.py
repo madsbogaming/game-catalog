@@ -3,6 +3,7 @@
 import html
 import json
 import os
+import re
 from datetime import datetime, timezone
 
 from db import PLAYERS_NEEDED
@@ -30,7 +31,13 @@ def page_data(rows: list[dict]) -> list[dict]:
 
 
 def _json(value) -> str:
-    return json.dumps(value, ensure_ascii=False).replace("</", "<\\/")
+    """JSON to put inside the page's <script>. < > & are written as \\u escapes (the same text to the script), so a
+    name like "</script><img onerror=...>" can never end the script or become HTML."""
+    text = json.dumps(value, ensure_ascii=False)
+    return text.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+
+
+PLACEHOLDER = re.compile(r"__(GUILD|DATE|CONFIG|USERS|DATA)__")
 
 
 def render_catalog(rows: list[dict], guild_name: str, *, users: dict | None = None, live=False,
@@ -40,15 +47,14 @@ def render_catalog(rows: list[dict], guild_name: str, *, users: dict | None = No
                    locked=False) -> str:
     """`locked`: another server's catalog, sent without its games; the page loads them once a member signs in."""
     config = {"live": live, "locked": locked, "clientId": str(client_id or ""), "signIn": can_sign_in,
-              "guildIcon": guild_icon,
+              "guildName": guild_name, "guildIcon": guild_icon,
               "publicUrl": public_url, "seenPlaying": [str(u) for u in seen_playing or []],
               "steamHours": [str(u) for u in steam_hours or []], "playersNeeded": PLAYERS_NEEDED,
               "playedDeadline": played_deadline}
     with open(TEMPLATE_PATH, encoding="utf-8") as f:  # read every time, so page tweaks don't need a restart
         template = f.read()
-    return (template
-            .replace("__GUILD__", html.escape(guild_name))
-            .replace("__DATE__", datetime.now(timezone.utc).strftime("%Y-%m-%d"))
-            .replace("__CONFIG__", _json(config))
-            .replace("__USERS__", _json(users or {}))
-            .replace("__DATA__", _json(page_data(rows))))
+    values = {"GUILD": html.escape(guild_name), "DATE": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+              "CONFIG": _json(config), "USERS": _json(users or {}), "DATA": _json(page_data(rows))}
+    # One pass over the template: what's filled in is never searched again, so a server or nickname called
+    # "__DATA__" stays just that text (filling them in one after another pasted the game list into it)
+    return PLACEHOLDER.sub(lambda m: values[m[1]], template)
