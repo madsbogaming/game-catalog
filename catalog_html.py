@@ -36,8 +36,11 @@ def _json(value) -> str:
 def render_catalog(rows: list[dict], guild_name: str, *, users: dict | None = None, live=False,
                    client_id: int | None = None, can_sign_in=False, guild_icon: str | None = None,
                    public_url: str | None = None, seen_playing: list[int] | None = None,
-                   steam_hours: list[int] | None = None, played_deadline: int | None = None) -> str:
-    config = {"live": live, "clientId": str(client_id or ""), "signIn": can_sign_in, "guildIcon": guild_icon,
+                   steam_hours: list[int] | None = None, played_deadline: int | None = None,
+                   locked=False) -> str:
+    """`locked`: another server's catalog, sent without its games; the page loads them once a member signs in."""
+    config = {"live": live, "locked": locked, "clientId": str(client_id or ""), "signIn": can_sign_in,
+              "guildIcon": guild_icon,
               "publicUrl": public_url, "seenPlaying": [str(u) for u in seen_playing or []],
               "steamHours": [str(u) for u in steam_hours or []], "playersNeeded": PLAYERS_NEEDED,
               "playedDeadline": played_deadline}

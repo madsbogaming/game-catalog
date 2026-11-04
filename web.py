@@ -109,6 +109,31 @@ class CatalogSite:
         guild = self.bot.get_guild(int(requested)) if requested.isdigit() else None
         return guild or self.bot.get_guild(self.default_guild_id) or next(iter(self.bot.guilds), None)
 
+    def is_public(self, guild) -> bool:
+        """Whether anyone with the catalog's address may see this server's catalog, as before there were several:
+        the home server (GUILD_ID), or the only server when GUILD_ID isn't set. Any other server's catalog (its games,
+        and its people's names, faces and online status) is only for its own signed-in members."""
+        if guild is None:
+            return True
+        return guild.id == self.default_guild_id if self.default_guild_id else len(self.bot.guilds) <= 1
+
+    async def visible_guild(self, request: web.Request):
+        """The server whose catalog this request asks for, or None when it isn't public and the viewer isn't
+        signed in as one of its members."""
+        guild = self.guild(request)
+        if self.is_public(guild):
+            return guild
+        try:
+            uid = await self.viewer(request)
+        except web.HTTPUnauthorized:
+            return None
+        if guild.get_member(uid) is None:
+            try:
+                await guild.fetch_member(uid)
+            except discord.HTTPException:
+                return None
+        return guild
+
     async def catalog(self, guild) -> tuple[list[dict], dict[str, dict]]:
         """All games of `guild`, plus profile info for everyone who added, wants or is mentioned in one."""
         rows = self.bot.db.query(guild.id) if guild else []
@@ -225,8 +250,10 @@ class CatalogSite:
 
     async def index(self, request: web.Request) -> web.Response:
         guild = self.guild(request)
-        rows, users = await self.catalog(guild)
-        page = render_catalog(rows, guild.name if guild else "Game", users=users, live=True,
+        # Another server's catalog: the page comes empty, and loads the games once its member has signed in
+        locked = not self.is_public(guild)
+        rows, users = ([], {}) if locked else await self.catalog(guild)
+        page = render_catalog(rows, guild.name if guild else "Game", users=users, live=True, locked=locked,
                               guild_icon=guild.icon.with_size(64).url if guild and guild.icon else None,
                               public_url=self.public_url, seen_playing=self.bot.db.seen_playing(),
                               steam_hours=self.bot.db.steam_hours_users(), played_deadline=self.played_deadline,
@@ -236,7 +263,10 @@ class CatalogSite:
         return response
 
     async def data(self, request: web.Request) -> web.Response:
-        rows, users = await self.catalog(self.guild(request))
+        guild = await self.visible_guild(request)
+        if guild is None:
+            raise web.HTTPForbidden(text="Sign in as a member of this server to see its catalog")
+        rows, users = await self.catalog(guild)
         body = json.dumps({"games": page_data(rows), "users": users}, ensure_ascii=False)
         response = web.Response(text=body, content_type="application/json", headers={"Cache-Control": "no-store"})
         response.enable_compression()
@@ -494,8 +524,10 @@ class CatalogSite:
     async def statuses(self, request: web.Request) -> web.Response:
         """Who's online now, for the dots on the faces. Status changes don't change the catalog's version,
         so open pages ask for this every little while. Only the people the catalog shows."""
-        guild = self.guild(request)
-        status = self.status_of(guild, self._shown.get(guild.id, ()) if guild else ())
+        guild = await self.visible_guild(request)
+        if guild is None:
+            raise web.HTTPForbidden(text="Sign in as a member of this server to see who's online")
+        status = self.status_of(guild, self._shown.get(guild.id, ()))
         return web.json_response(status, headers={"Cache-Control": "no-store"})
 
     async def version(self, request: web.Request) -> web.Response:

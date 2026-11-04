@@ -1099,6 +1099,7 @@ async function signIn() {
     if (res.status === 401) signOut();  // expired or revoked: back to the sign-in button
     if (!res.ok) throw new Error("sign-in check failed: HTTP " + res.status);
     me = (await res.json()).id;
+    if (CONFIG.locked) reloadNow = true;  // another server's catalog: its games load now that we know who you are
     return;
   }
   const { code } = await sdk.commands.authorize({
@@ -1108,7 +1109,10 @@ async function signIn() {
   if (!res.ok) throw new Error("sign-in failed: HTTP " + res.status);
   token = (await res.json()).access_token;
   me = (await sdk.commands.authenticate({ access_token: token })).user.id;
+  if (CONFIG.locked) reloadNow = true;
 }
+// Who's asking, for the catalog's own data: another server's catalog is only sent to its signed-in members
+const authHeaders = () => token ? { headers: { Authorization: "Bearer " + token } } : {};
 
 async function api(path, payload) {
   await signIn();
@@ -1471,6 +1475,7 @@ if (BROWSER_SIGNIN) {
     s.href = CONFIG.publicUrl + "/auth/login";
   }
   if (CAN_WANT) signIn().then(() => { renderWhenFree(); }).catch((err) => console.warn("Not signed in", err));
+  else if (CONFIG.locked) toast("Sign in with Discord to see this server's catalog");
 }
 
 // -- "Ping to play": pick who to ping for a game (everyone who wants it is ticked), then ping them --
@@ -2144,7 +2149,7 @@ if (CONFIG.live) {
       const v = (await (await fetch("/version")).json()).v;
       if ((version !== null && v !== version) || reloadNow) {
         const seq = saveCount;
-        const res = await fetch("/data.json" + location.search);
+        const res = await fetch("/data.json" + location.search, authHeaders());
         if (!res.ok) return;
         const body = await res.json();
         if (saving || seq !== saveCount) return;
@@ -2161,9 +2166,9 @@ if (CONFIG.live) {
   }, 3000);
   // Who's online changes without the catalog changing: the dots are fetched on their own, and set in place
   setInterval(async () => {
-    if (document.hidden) return;
+    if (document.hidden || (CONFIG.locked && !token)) return;
     try {
-      const status = await (await fetch("/status.json" + location.search)).json();
+      const status = await (await fetch("/status.json" + location.search, authHeaders())).json();
       for (const [id, s] of Object.entries(status)) if (USERS[id]) USERS[id].status = s;
       document.querySelectorAll("[data-sid]").forEach((el) => {
         const s = status[el.dataset.sid];
