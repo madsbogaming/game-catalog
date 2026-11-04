@@ -99,7 +99,7 @@ Set it up in a minute (you need Manage Messages):
 1. `/setup watch` in the channel where you post games
 2. `/backfill` in that channel, to add the games already posted there
 3. `/setup country` and `/setup timezone`, for prices in your currency and posts at your time
-4. Optional: `/setup post` picks where the daily #GOTG, the weekly deals and free games go
+4. Optional: `/setup post` picks where the daily #GOTG, the weekly deals and free games go, and turns on Bot updates
 
 Then post a Steam link and watch it land in `/catalog`. `/setup show` lists everything I use here."""
 
@@ -2025,7 +2025,9 @@ async def setup_post(interaction: discord.Interaction, kind: str, channel: disco
                      default: bool = False):
     bot.settings.set_post_channel(interaction.guild_id, kind, None if default else channel.id if channel else 0)
     now = bot.post_channel(interaction.guild, kind)
-    await interaction.response.send_message(f"**{POSTS[kind]}:** " + (now.mention if now else "off"), ephemeral=True)
+    note = ("\n-# Only big updates are posted there, now and then." if kind == "updates" and now else "")
+    await interaction.response.send_message(f"**{POSTS[kind]}:** " + (now.mention if now else "off") + note,
+                                            ephemeral=True)
 
 
 @setup.command(name="admin", description="Let someone use every command here (or not)")

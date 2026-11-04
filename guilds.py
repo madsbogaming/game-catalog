@@ -24,7 +24,10 @@ POSTS = {
     "achievements": "Achievements",
     "played_rule": "Played rule posts",
     "gotg": "#GOTG (daily games to play)",
+    "updates": "Bot updates (new features and fixes)",
 }
+# Posts no server gets until its admins pick a channel for them
+OPT_IN = {"updates"}
 # Without a setting of its own, a kind of post goes where another one goes (free games: the first watched channel)
 FALLBACK = {"deals": "free_games", "played_rule": "achievements"}
 
@@ -138,6 +141,8 @@ class Settings:
         stored = self._stored(guild_id, kind)
         if stored is not None:
             return stored
+        if kind in OPT_IN:
+            return 0
         env = self.defaults.posts.get(kind)
         if env == 0 and self.is_home(guild_id):
             return 0

@@ -28,7 +28,7 @@ Then set it up in a minute:
 1. **Pick your games channel:** `/setup watch` in the channel where people post games.
 2. **Import what's already there:** `/backfill` in that channel.
 3. **Your prices and time:** `/setup country` (for example `dk` or `us`) and `/setup timezone` (start typing your city).
-4. **Optional:** `/setup post` picks where the daily #GOTG, the weekly deals and free games go.
+4. **Optional:** `/setup post` picks where the daily #GOTG, the weekly deals and free games go, and can turn on Bot updates: a post now and then when something big is new.
 
 That's it. Post a Steam link and watch it land in the catalog. `/setup show` lists everything the bot uses on your server.
 

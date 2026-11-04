@@ -33,7 +33,7 @@ A Discord bot that watches your server for **Steam store links** and **Instagram
 | `/setup show` | See which channels the bot reads and posts in on this server, and who its admins are. |
 | `/setup watch` | Put game links from a channel into the catalog (`on: False` stops it). Run `/backfill` there afterwards for the older links. |
 | `/setup read` | Let the bot read a channel or thread without adding its links, e.g. a feedback thread. |
-| `/setup post` | Pick the channel for free Steam games, weekly deals, achievements, Played rule posts or #GOTG. Leave the channel empty to turn those posts off, or pick `default: True` to go back to the default. |
+| `/setup post` | Pick the channel for free Steam games, weekly deals, achievements, Played rule posts, #GOTG or Bot updates (big new features now and then, off until you pick a channel). Leave the channel empty to turn those posts off, or pick `default: True` to go back to the default. |
 | `/setup admin` | Let someone use every command on this server (`on: False` takes it away). |
 | `/setup country` | Show Steam prices in your country's currency, e.g. `dk` or `us`. Leave it empty to go back to the default. |
 | `/setup timezone` | The time zone #GOTG and the weekly deals post in, e.g. `Europe/Copenhagen`. Start typing a city to pick one. |
