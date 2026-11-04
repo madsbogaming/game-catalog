@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import random
+import re
 import time
 from datetime import date, datetime, timedelta, timezone
 
@@ -442,6 +443,7 @@ def not_on_steam(appid: int) -> TurnedAway:
 
 class GameBot(commands.Bot):
     def __init__(self):
+        self.command_ids: dict[str, int] = {}  # command name -> id, filled when the commands are synced
         intents = discord.Intents.default()
         intents.message_content = True
         intents.members = True
@@ -500,7 +502,16 @@ class GameBot(commands.Bot):
         "launch" that opens the catalog). Discord refuses an update that leaves it out, and discord.py doesn't send it."""
         entry_points = [c for c in await self.http.get_global_commands(self.application_id) if c.get("type") == 4]
         payload = [command.to_dict(self.tree) for command in self.tree.get_commands()] + entry_points
-        await self.http.bulk_upsert_global_commands(self.application_id, payload=payload)
+        synced = await self.http.bulk_upsert_global_commands(self.application_id, payload=payload)
+        self.command_ids = {c["name"]: int(c["id"]) for c in synced}
+
+    def command_refs(self, text: str) -> str:
+        """Turns `/setup watch` in a message into a command mention (</setup watch:id>), which Discord shows as
+        the command itself and fills in when clicked. Commands it has no id for stay as they are."""
+        def ref(match: re.Match) -> str:
+            command_id = self.command_ids.get(match[1].split()[0])
+            return f"</{match[1]}:{command_id}>" if command_id else match[0]
+        return re.sub(r"`/([a-z_-]+(?: [a-z_-]+)?)`", ref, text)
 
     async def share_tunnel(self):
         """Start the public tunnel and DM the admins its address, which changes on every start
@@ -1096,11 +1107,11 @@ class GameBot(commands.Bot):
         channel = welcome_channel(guild)
         try:
             if channel:
-                await channel.send(WELCOME)
+                await channel.send(self.command_refs(WELCOME))
                 log.info("Welcomed %s in #%s", guild.name, channel.name)
             elif guild.owner:
                 await guild.owner.send(f"Hi! I was just added to **{guild.name}**, but I can't post in any of its "
-                                       f"channels, so here's how to set me up.\n\n{WELCOME}")
+                                       f"channels, so here's how to set me up.\n\n{self.command_refs(WELCOME)}")
                 log.info("Welcomed %s by DM to its owner (no channel to post in)", guild.name)
         except discord.HTTPException as exc:
             log.warning("Couldn't welcome %s: %s", guild.name, exc)
