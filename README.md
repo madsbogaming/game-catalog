@@ -51,6 +51,10 @@ Admins get more commands to add, tag, refresh and remove games, and `/setup` to 
 
 The **[full guide](docs/GUIDE.md)** covers every feature and command, the in-Discord catalog Activity, Steam playtime tracking, and keeping the bot online 24/7.
 
+## Privacy and terms
+
+What the bot keeps about people and why is in the **[privacy policy](docs/PRIVACY.md)**. The rules for using it are in the **[terms of service](docs/TERMS.md)**.
+
 ## Help make it better
 
 Found a bug or have an idea? [Open an issue](https://github.com/madsbogaming/mads-bo-wacky/issues/new/choose). Want to change the code? Start with **[CONTRIBUTING.md](CONTRIBUTING.md)**.
