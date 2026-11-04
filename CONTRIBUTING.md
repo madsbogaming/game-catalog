@@ -54,7 +54,9 @@ The catalog page works in your browser at <http://127.0.0.1:8765>. You only need
    ```
 5. **Open a pull request.** GitHub shows a "Compare & pull request" button on the repo page after your push. Say what you changed and how you tested it.
 
-A check runs on every pull request and catches typos, missing imports and unused names. If it shows a red X, click it to see what's wrong, fix it, and push again. The pull request updates on its own.
+A check runs on every pull request and catches typos, missing imports and unused names, and runs the tests. If it shows a red X, click it to see what's wrong, fix it, and push again. The pull request updates on its own.
+
+`main` is protected: it only takes changes through a pull request whose check has passed, so you can't push to it directly, force-push it or delete it. That's on purpose, since the live bot runs whatever is on `main`.
 
 When the pull request is merged, the change is on `main`. The real bot picks it up the next time Mads pulls and restarts it.
 
