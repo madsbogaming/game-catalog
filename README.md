@@ -35,7 +35,7 @@ For now the bot is invite-only: setting it up yourself is for invited collaborat
 
 That's it. Post a Steam link and watch it land in the catalog.
 
-**More servers?** Invite the same bot to them. Each one gets its own catalog, votes and achievements, and starts with nothing watched: an admin there runs `/setup watch` in its games channel, then `/backfill`. `/setup show` lists what the bot uses on a server.
+**More servers?** Invite the same bot to them. Each one gets its own catalog, votes and achievements, and starts with nothing watched: an admin there runs `/setup watch` in its games channel, then `/backfill`, and `/setup country` and `/setup timezone` for prices in their currency and posts at their time. `/setup show` lists what the bot uses on a server.
 
 ## Everyone can use
 

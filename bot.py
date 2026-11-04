@@ -20,7 +20,8 @@ import sources
 import gotg
 from catalog_html import render_catalog
 from db import PLAYERS_NEEDED, STATUSES, Database
-from guilds import POSTS, Defaults, Settings, parse_channel, parse_ids
+from guilds import (POSTS, Defaults, Settings, find_timezones, parse_channel, parse_country, parse_ids,
+                    parse_timezone)
 from web import CatalogSite
 
 load_dotenv()
@@ -31,7 +32,10 @@ WATCH_CHANNELS = parse_ids(os.getenv("WATCH_CHANNEL_IDS"))
 # The only channels (and threads) the bot reads at all: the watched ones plus these. Messages anywhere else are
 # ignored, even when Discord lets the bot see them.
 READ_CHANNELS = parse_ids(os.getenv("READ_CHANNEL_IDS"))
-STEAM_COUNTRY = os.getenv("STEAM_COUNTRY", "us")
+# The home server's country for Steam prices and its time zone for the daily and weekly posts (each server can pick
+# its own with /setup country and /setup timezone)
+STEAM_COUNTRY = parse_country(os.getenv("STEAM_COUNTRY")) or "us"
+TIMEZONE = parse_timezone(os.getenv("TIMEZONE")) or "UTC"
 DB_PATH = os.getenv("DB_PATH", "catalog.db")
 INTEREST_EMOJI = os.getenv("INTEREST_EMOJI", "🎮")
 # Discord user IDs allowed to use every command in the home server (others only get /catalog, /random and /link).
@@ -49,8 +53,8 @@ REFUND_MAX_MINUTES = 120  # Steam refunds only games played less than 2 hours
 # The home server's channels for the bot's own posts (each server can pick its own with /setup; 0 turns them off).
 # Free-to-keep Steam games (default: the first watched channel)
 FREE_GAMES_CHANNEL_ID = parse_channel(os.getenv("FREE_GAMES_CHANNEL_ID"))
-# Weekly post of catalog games on deep discount: where (default: with the free games), when (day 0 = Monday, local
-# time) and how deep
+# Weekly post of catalog games on deep discount: where (default: with the free games), when (day 0 = Monday, in each
+# server's time zone) and how deep
 DEALS_CHANNEL_ID = parse_channel(os.getenv("DEALS_CHANNEL_ID"))
 DEALS_DAY = int(os.getenv("DEALS_DAY") or 3)  # Thursday: Steam's weekly deals start then
 DEALS_HOUR = int(os.getenv("DEALS_HOUR") or 19)
@@ -68,15 +72,16 @@ PLAYED_RULE_CHANNEL_ID = parse_channel(os.getenv("PLAYED_RULE_CHANNEL_ID"))
 PLAYED_RULE_DEADLINE = int(datetime.strptime(os.getenv("PLAYED_RULE_DEADLINE") or "2026-11-15", "%Y-%m-%d")
                            .replace(hour=23, minute=59).timestamp())
 CATCH_UP_PAGE = 5  # games per "Have you played these?" message (Discord allows 40 parts in one)
-# "Get on the game" (#GOTG): the daily post of games to play together tonight (gotg.py), when (local time) and where.
-# Without GOTG_CHANNEL_ID it goes in the channel named GOTG_CHANNEL_NAME; posting starts no later than GOTG_LATEST_HOUR
-# (if the bot was off at GOTG_TIME), and its "I'm in" buttons last until midnight.
+# "Get on the game" (#GOTG): the daily post of games to play together tonight (gotg.py), when (in each server's time
+# zone) and where. Without GOTG_CHANNEL_ID the home server's goes in the channel named GOTG_CHANNEL_NAME; posting starts
+# no later than GOTG_LATEST_HOUR (if the bot was off at GOTG_TIME), and its "I'm in" buttons last until midnight.
 GOTG_CHANNEL_ID = parse_channel(os.getenv("GOTG_CHANNEL_ID"))
 GOTG_CHANNEL_NAME = os.getenv("GOTG_CHANNEL_NAME", "madsbo-wacky-gamerweekend")
 GOTG_TIME = datetime.strptime(os.getenv("GOTG_TIME") or "16:30", "%H:%M").time()
 GOTG_LATEST_HOUR = 20
 BADGES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "badges")
-DEFAULTS = Defaults(home_guild=GUILD_ID, watch=WATCH_CHANNELS, read=READ_CHANNELS, admins=ADMIN_IDS, posts={
+DEFAULTS = Defaults(home_guild=GUILD_ID, watch=WATCH_CHANNELS, read=READ_CHANNELS, admins=ADMIN_IDS,
+                    country=STEAM_COUNTRY, timezone=TIMEZONE, posts={
     "free_games": FREE_GAMES_CHANNEL_ID, "deals": DEALS_CHANNEL_ID, "achievements": ACHIEVEMENTS_CHANNEL_ID,
     "played_rule": PLAYED_RULE_CHANNEL_ID, "gotg": GOTG_CHANNEL_ID})
 
@@ -206,7 +211,7 @@ class ReelGameModal(ui.Modal, title="Which game is this reel?"):
         if not reel or reel["kind"] != "instagram":
             return await interaction.response.send_message("That reel is already linked to a game.", ephemeral=True)
         await interaction.response.defer(ephemeral=True)
-        appid = await find_appid(self.game.value)
+        appid = await find_appid(self.game.value, interaction.guild_id)
         if not appid:
             return await interaction.followup.send(f"Couldn't find “{self.game.value}” on Steam. Try its Steam link.",
                                                    ephemeral=True)
@@ -509,8 +514,9 @@ class GameBot(commands.Bot):
     def post_channel(self, guild: discord.Guild, kind: str):
         """The channel in `guild` for its `kind` posts (see guilds.POSTS), or None when they're turned off."""
         channel_id = self.settings.post_channel(guild.id, kind)
-        if channel_id is None:  # #GOTG without a channel set: the one with its usual name
-            return discord.utils.get(guild.text_channels, name=GOTG_CHANNEL_NAME)
+        if channel_id is None:  # #GOTG without a channel set: in the home server, the one with its usual name
+            home = self.settings.is_home(guild.id)
+            return discord.utils.get(guild.text_channels, name=GOTG_CHANNEL_NAME) if home else None
         channel = self.get_channel(channel_id) if channel_id else None
         return channel if channel and channel.guild.id == guild.id else None
 
@@ -524,7 +530,7 @@ class GameBot(commands.Bot):
         existing = self.db.get_by_key(guild_id, f"steam:{appid}")
         if existing:
             return existing, False
-        meta = await sources.fetch_steam(self.web, appid, STEAM_COUNTRY)
+        meta = await sources.fetch_steam(self.web, appid, self.settings.country(guild_id))
         if not meta:
             log.info("Turned away unknown Steam app %s", appid)
             raise not_on_steam(appid)
@@ -555,28 +561,32 @@ class GameBot(commands.Bot):
 
     @tasks.loop(hours=3)
     async def refresh_prices(self):
-        """Keep prices up to date, so Steam sales show up (and disappear again) in the catalog."""
+        """Keep prices up to date, so Steam sales show up (and disappear again) in the catalog. Each server's games are
+        priced in its own country (/setup country), and each country's prices are fetched once."""
         try:
             rows = self.db.conn.execute(
-                "SELECT id, key, price_cents, price_text, discount_pct, price_full_text, discount_ends FROM entries WHERE kind = 'steam'"
+                "SELECT id, guild_id, key, price_cents, price_text, discount_pct, price_full_text, discount_ends "
+                "FROM entries WHERE kind = 'steam'"
             ).fetchall()
-            appids = [int(r["key"].split(":")[1]) for r in rows]
-            # The store API is fresh and says when each sale ends; appdetails (cached for a while, so it can
-            # still show a sale that just ended) only covers the games the store API didn't answer for
-            prices = await sources.fetch_store_prices(self.web, appids, STEAM_COUNTRY)
-            missing = [a for a in appids if a not in prices]
-            if missing:
-                old = await sources.fetch_prices(self.web, missing, STEAM_COUNTRY)
-                prices |= {a: {**p, "discount_ends": None} for a, p in old.items()}
             changed = sales = 0
-            for r in rows:
-                new = prices.get(int(r["key"].split(":")[1]))
-                if new is None:
-                    continue
-                sales += bool(new["discount_pct"])
-                if any(new[k] != r[k] for k in new):
-                    self.db.update(r["id"], **new)
-                    changed += 1
+            for country, guild_ids in self.settings.countries({r["guild_id"] for r in rows}).items():
+                ours = [r for r in rows if r["guild_id"] in guild_ids]
+                appids = sorted({int(r["key"].split(":")[1]) for r in ours})
+                # The store API is fresh and says when each sale ends; appdetails (cached for a while, so it can
+                # still show a sale that just ended) only covers the games the store API didn't answer for
+                prices = await sources.fetch_store_prices(self.web, appids, country)
+                missing = [a for a in appids if a not in prices]
+                if missing:
+                    old = await sources.fetch_prices(self.web, missing, country)
+                    prices |= {a: {**p, "discount_ends": None} for a, p in old.items()}
+                for r in ours:
+                    new = prices.get(int(r["key"].split(":")[1]))
+                    if new is None:
+                        continue
+                    sales += bool(new["discount_pct"])
+                    if any(new[k] != r[k] for k in new):
+                        self.db.update(r["id"], **new)
+                        changed += 1
             log.info("Refreshed prices: %d changed, %d games on sale", changed, sales)
         except Exception:
             log.exception("Couldn't refresh prices")
@@ -640,20 +650,22 @@ class GameBot(commands.Bot):
     async def _post_free_games(self):
         """Post Steam games that are 100% off (free to keep), once each, in every server's free-games channel."""
         channels = [c for c in (self.post_channel(g, "free_games") for g in self.guilds) if c]
-        if not channels:
-            return
-        free, metas = await sources.find_free_games(self.web, STEAM_COUNTRY), {}
-        for channel in channels:
-            await self._post_free_games_in(channel, free, metas)
+        # Each country is looked up once: what's free and the normal price both depend on it
+        for country, guild_ids in self.settings.countries({c.guild.id for c in channels}).items():
+            free, metas = await sources.find_free_games(self.web, country), {}
+            for channel in channels:
+                if channel.guild.id in guild_ids:
+                    await self._post_free_games_in(channel, free, metas, country)
 
-    async def _post_free_games_in(self, channel, free: list[int], metas: dict):
-        """The free games not posted in `channel`'s server yet. `metas`: Steam info already fetched (for any server)."""
+    async def _post_free_games_in(self, channel, free: list[int], metas: dict, country: str):
+        """The free games not posted in `channel`'s server yet. `metas`: Steam info already fetched (for any server
+        in the same country)."""
         now = int(time.time())
         for appid in free:
             if self.db.free_posted_since(channel.guild.id, appid, now - 30 * 86400):
                 continue
             if appid not in metas:
-                metas[appid] = await sources.fetch_steam(self.web, appid, STEAM_COUNTRY)
+                metas[appid] = await sources.fetch_steam(self.web, appid, country)
             meta = metas[appid]
             if not meta or not meta["_giveaway"]:
                 continue
@@ -698,15 +710,16 @@ class GameBot(commands.Bot):
 
     @tasks.loop(minutes=30)
     async def post_deals(self):
-        """Once a week, on DEALS_DAY after DEALS_HOUR (or as soon as the bot is back, if it was off then)."""
+        """Once a week, on DEALS_DAY after DEALS_HOUR in each server's time zone (or as soon as the bot is back, if it
+        was off then)."""
         try:
-            now = datetime.now()
-            due = (now - timedelta(days=(now.weekday() - DEALS_DAY) % 7)).replace(hour=DEALS_HOUR, minute=0, second=0,
-                                                                                   microsecond=0)
-            if due > now:
-                due -= timedelta(days=7)
             refreshed = False
             for guild in self.guilds:
+                now = self.settings.now(guild.id)
+                due = (now - timedelta(days=(now.weekday() - DEALS_DAY) % 7)).replace(hour=DEALS_HOUR, minute=0,
+                                                                                       second=0, microsecond=0)
+                if due > now:
+                    due -= timedelta(days=7)
                 last = self.db.get_guild_meta(guild.id, "deals_posted")
                 if last is None:  # just switched on: start with next week's, rather than posting right away
                     self.db.set_guild_meta(guild.id, "deals_posted", due.date().isoformat())
@@ -840,12 +853,13 @@ class GameBot(commands.Bot):
 
     @tasks.loop(minutes=5)
     async def post_gotg(self):
-        """Every day at GOTG_TIME: each server's #GOTG post (once a day; later the same day if the bot was off then)."""
-        now = datetime.now()
-        day = now.date().isoformat()
-        if now.time() < GOTG_TIME or now.hour >= GOTG_LATEST_HOUR:
-            return
+        """Every day at GOTG_TIME in each server's time zone: its #GOTG post (once a day; later the same day if the bot
+        was off then)."""
         for guild in self.guilds:
+            now = self.settings.now(guild.id)
+            day = now.date().isoformat()
+            if now.time() < GOTG_TIME or now.hour >= GOTG_LATEST_HOUR:
+                continue
             try:
                 if self.db.gotg_post(guild.id, day):
                     continue
@@ -869,8 +883,8 @@ class GameBot(commands.Bot):
         await self.wait_until_ready()
         for guild in self.guilds:
             channel = self.post_channel(guild, "gotg")
-            log.info("#GOTG posts at %s in %s: %s", f"{GOTG_TIME:%H:%M}", guild.name, f"#{channel.name}" if channel else
-                     f"off (pick a channel with /setup post, or name one {GOTG_CHANNEL_NAME})")
+            log.info("#GOTG posts at %s (%s) in %s: %s", f"{GOTG_TIME:%H:%M}", self.settings.timezone(guild.id),
+                     guild.name, f"#{channel.name}" if channel else "off (pick a channel with /setup post)")
         await asyncio.sleep(120)  # after the startup catch-up and the first Steam libraries
 
     async def ensure_battlenet(self, guild_id: int, key: str, url: str, origin: dict) -> tuple[dict, bool]:
@@ -882,7 +896,7 @@ class GameBot(commands.Bot):
         existing = self.db.get_by_key(guild_id, key)
         if existing:
             return existing, False
-        meta = await sources.fetch_battlenet(self.web, url, STEAM_COUNTRY)
+        meta = await sources.fetch_battlenet(self.web, url, self.settings.country(guild_id))
         if not meta:
             log.info("Turned away unknown Battle.net page %s", url)
             raise TurnedAway(f"Couldn't find a game at <{url}>. Post the game's Battle.net shop page or its own site.")
@@ -924,7 +938,7 @@ class GameBot(commands.Bot):
     async def identify_reel(self, message: discord.Message, reel: dict):
         """A new reel: link it to the game its caption names, or ask the poster which game it is."""
         caption = "\n".join(filter(None, [reel.get("description"), reel.get("title"), sources.strip_links(message.content)]))
-        appid = await sources.game_from_caption(self.web, caption, STEAM_COUNTRY)
+        appid = await sources.game_from_caption(self.web, caption, self.settings.country(reel["guild_id"]))
         if appid:
             try:
                 game = await self.link_reel(reel, appid)
@@ -1128,7 +1142,8 @@ class GameBot(commands.Bot):
                 f"{' · '.join(f'<@{t.id}>' for t in targets)}")
         mentions = discord.AllowedMentions(users=list(targets))
         if entry["kind"] == "steam":  # a Steam card with fresh price and scores, and the link to get the game
-            meta = await sources.fetch_steam(self.web, int(entry["key"].split(":")[1]), STEAM_COUNTRY) or {}
+            meta = await sources.fetch_steam(self.web, int(entry["key"].split(":")[1]),
+                                             self.settings.country(entry["guild_id"])) or {}
             await channel.send(text, embed=steam_card(entry, meta), allowed_mentions=mentions)
         else:  # a reel: Discord's own preview of the link
             await channel.send(f"{text}\n{entry['url']}", allowed_mentions=mentions)
@@ -1282,11 +1297,11 @@ async def reel_autocomplete(interaction: discord.Interaction, current: str) -> l
     return entry_choices(bot.db.search(interaction.guild_id, current, kind="instagram"))
 
 
-async def steam_autocomplete(_interaction: discord.Interaction, current: str) -> list[Choice]:
+async def steam_autocomplete(interaction: discord.Interaction, current: str) -> list[Choice]:
     if len(current) < 2 or sources.STEAM_RE.search(current):
         return []
     try:
-        hits = await asyncio.wait_for(sources.search_steam(bot.web, current, STEAM_COUNTRY), timeout=2.5)
+        hits = await asyncio.wait_for(sources.search_steam(bot.web, current, bot.settings.country(interaction.guild_id)), timeout=2.5)
     except asyncio.TimeoutError:
         return []
     return [Choice(name=name[:100], value=str(appid)) for appid, name in hits[:25]]
@@ -1307,13 +1322,13 @@ def find_entry(interaction: discord.Interaction, value: str) -> dict | None:
     return hits[0] if hits else None
 
 
-async def find_appid(value: str) -> int | None:
+async def find_appid(value: str, guild_id: int | None) -> int | None:
     ids = sources.find_steam_ids(value)
     if ids:
         return ids[0]
     if value.isdigit():
         return int(value)
-    hits = await sources.search_steam(bot.web, value, STEAM_COUNTRY)
+    hits = await sources.search_steam(bot.web, value, bot.settings.country(guild_id))
     return hits[0][0] if hits else None
 
 
@@ -1555,7 +1570,7 @@ def gotg_line(e: dict, group: str, ins: list[int], owners: dict[int, set[int]]) 
 def gotg_view(guild_id: int, day: str) -> ui.LayoutView:
     """The server's #GOTG post of `day`, with who's in so far (redrawn on every "I'm in"). Pings nobody."""
     post, owners = bot.db.gotg_post(guild_id, day), bot.db.owners(guild_id)
-    over = day != date.today().isoformat()
+    over = day != bot.settings.now(guild_id).date().isoformat()
     items: list[ui.Item] = [ui.TextDisplay(
         "## Get on the game #GOTG\nWho's up for a game tonight? Press **I'm in** on the ones you'd play. Once "
         f"{gotg.PLAYERS_TO_PING} of you are in on the same game, the bot pings the others who have it or want it.")]
@@ -1615,7 +1630,7 @@ class GotgInButton(ui.DynamicItem[ui.Button], template=r"gotg:(?P<day>\d{4}-\d{2
     async def callback(self, interaction: discord.Interaction):
         gid = interaction.guild_id or 0
         post = bot.db.gotg_post(gid, self.day)
-        if self.day != date.today().isoformat() or not post or self.entry_id not in dict(post["picks"]):
+        if self.day != bot.settings.now(gid).date().isoformat() or not post or self.entry_id not in dict(post["picks"]):
             await interaction.response.send_message(
                 f"This #GOTG is over. A new one comes at {GOTG_TIME:%H:%M}.", ephemeral=True)
             return
@@ -1681,7 +1696,7 @@ async def random_game(interaction: discord.Interaction, genre: str | None = None
 @app_commands.autocomplete(game=steam_autocomplete)
 async def add(interaction: discord.Interaction, game: str, note: str | None = None):
     await interaction.response.defer()
-    appid = await find_appid(game)
+    appid = await find_appid(game, interaction.guild_id)
     if not appid:
         return await interaction.followup.send(f"Couldn't find “{game}” on Steam.")
     user = interaction.user
@@ -1709,7 +1724,7 @@ async def add(interaction: discord.Interaction, game: str, note: str | None = No
 async def allow(interaction: discord.Interaction, game: str):
     """For games Steam describes wrongly, e.g. playable online though Steam only lists split screen."""
     await interaction.response.defer()
-    appid = await find_appid(game)
+    appid = await find_appid(game, interaction.guild_id)
     if not appid:
         return await interaction.followup.send(f"Couldn't find “{game}” on Steam.")
     bot.allow_app(interaction.guild_id, appid)
@@ -1749,7 +1764,7 @@ async def link(interaction: discord.Interaction, reel: str, game: str):
     if not entry or entry["kind"] != "instagram":
         return await not_found(interaction, "that reel")
     await interaction.response.defer()
-    appid = await find_appid(game)
+    appid = await find_appid(game, interaction.guild_id)
     if not appid:
         return await interaction.followup.send(f"Couldn't find “{game}” on Steam.")
     try:
@@ -1802,7 +1817,7 @@ async def refresh(interaction: discord.Interaction, game: str):
     if not entry or entry["kind"] != "steam":
         return await not_found(interaction, "that Steam game")
     await interaction.response.defer()
-    meta = await sources.fetch_steam(bot.web, int(entry["key"].split(":")[1]), STEAM_COUNTRY)
+    meta = await sources.fetch_steam(bot.web, int(entry["key"].split(":")[1]), bot.settings.country(entry["guild_id"]))
     if not meta:
         return await interaction.followup.send("Steam didn't answer — try again later.")
     bot.db.update(entry["id"], **stored_fields(meta))
@@ -1916,6 +1931,8 @@ def setup_summary(guild: discord.Guild) -> str:
     admins = s.admins(gid)
     lines.append("**Admins:** " + (" ".join(f"<@{u}>" for u in sorted(admins)) if admins
                                    else "everyone with Manage Messages"))
+    lines.append(f"**Prices from:** Steam's {s.country(gid).upper()} store")
+    lines.append(f"**Time zone:** {s.timezone(gid)} (it's {s.now(gid):%H:%M} there now)")
     return "\n".join(lines)
 
 
@@ -1971,6 +1988,47 @@ async def setup_admin(interaction: discord.Interaction, user: discord.Member, on
     admins = bot.settings.set_admin(gid, user.id, on)
     who = " ".join(f"<@{u}>" for u in sorted(admins)) if admins else "everyone with Manage Messages"
     await interaction.response.send_message(f"Admins here: {who}", ephemeral=True)
+
+
+@setup.command(name="country", description="Show Steam prices in your country's currency")
+@app_commands.check(is_admin)
+@app_commands.describe(country="Two-letter country code, e.g. dk, us, de or gb (leave empty for the default)")
+async def setup_country(interaction: discord.Interaction, country: str | None = None):
+    gid, code = interaction.guild_id, parse_country(country)
+    if country and not code:
+        return await interaction.response.send_message(
+            f"“{country}” isn't a two-letter country code. Try e.g. `dk`, `us`, `de` or `gb`.", ephemeral=True)
+    bot.settings.set_country(gid, code)
+    log.info("%s set the country to %s in %s", interaction.user.display_name, bot.settings.country(gid),
+             interaction.guild.name)
+    await interaction.response.send_message(
+        f"Prices now come from Steam's **{bot.settings.country(gid).upper()}** store. The catalog shows them within a "
+        "minute.", ephemeral=True)
+    asyncio.create_task(bot.refresh_prices())  # so the catalog doesn't show the old currency until the next refresh
+
+
+async def timezone_autocomplete(_interaction: discord.Interaction, current: str) -> list[Choice]:
+    return [Choice(name=z, value=z) for z in find_timezones(current or "europe")]
+
+
+@setup.command(name="timezone", description="When #GOTG and the weekly deals post, in your time zone")
+@app_commands.check(is_admin)
+@app_commands.describe(timezone="Your time zone, e.g. Europe/Copenhagen (leave empty for the default)")
+@app_commands.autocomplete(timezone=timezone_autocomplete)
+async def setup_timezone(interaction: discord.Interaction, timezone: str | None = None):
+    gid, zone = interaction.guild_id, parse_timezone(timezone)
+    if timezone and not zone:
+        return await interaction.response.send_message(
+            f"“{timezone}” isn't a time zone I know. Start typing a city, e.g. `Copenhagen`, and pick one from the list.",
+            ephemeral=True)
+    bot.settings.set_timezone(gid, zone)
+    log.info("%s set the time zone to %s in %s", interaction.user.display_name, bot.settings.timezone(gid),
+             interaction.guild.name)
+    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    await interaction.response.send_message(
+        f"Time zone: **{bot.settings.timezone(gid)}** (it's {bot.settings.now(gid):%H:%M} there now). #GOTG posts at "
+        f"{GOTG_TIME:%H:%M} and the weekly deals on {days[DEALS_DAY]}s at {DEALS_HOUR}:00, both in that time.",
+        ephemeral=True)
 
 
 if __name__ == "__main__":

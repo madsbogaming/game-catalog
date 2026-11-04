@@ -18,7 +18,7 @@ This policy covers the Game Catalog bot ("the bot") and its catalog page, run by
 | Your Steam ID, the games in your Steam library and your hours in them | Only if you sign in to the catalog with Discord and your Discord account has Steam linked. Read from Steam when your game details are public | Played counts, #GOTG picks of games you already own, and achievements |
 | Achievements you've earned | Worked out from the above | To show them on your profile and announce them |
 | Which servers you're in with the bot | Discord | So Steam data only counts in servers you're actually in |
-| Each server's settings (channels, admins) | That server's admins, via `/setup` | So the bot reads and posts in the right places |
+| Each server's settings (channels, admins, country, time zone) | That server's admins, via `/setup` | So the bot reads and posts in the right places |
 
 The bot reads messages **only** in the channels and threads a server's admins have picked. Messages anywhere else are ignored, even when Discord would let the bot see them. From the messages it does read, it keeps only game links and the message's ID, not your text.
 

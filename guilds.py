@@ -1,4 +1,5 @@
-"""Per-server settings: which channels the bot reads, where it posts, and who its admins are, in every server it's in.
+"""Per-server settings: which channels the bot reads, where it posts, who its admins are, and the country (for Steam
+prices) and time zone (for the daily and weekly posts), in every server it's in.
 
 Admins set them with /setup, and they're kept in the database (guild_meta). Until a server sets one, the .env value
 counts, but only for the server it belongs to: a channel ID always belongs to one server, and ADMIN_IDS belong to the
@@ -8,7 +9,13 @@ as before, and a server added later starts with nothing watched until its admins
 
 import json
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Callable
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
+
+# What a server added later starts with, until its admins pick their own with /setup country and /setup timezone
+OTHER_COUNTRY = "us"
+OTHER_TIMEZONE = "UTC"
 
 # Where the bot posts things on its own: setting -> what /setup calls it
 POSTS = {
@@ -33,6 +40,30 @@ def parse_channel(text: str | None) -> int | None:
     return int(text) if text else None
 
 
+def parse_country(text: str | None) -> str | None:
+    """'DK ' -> 'dk', the two-letter code Steam prices go by. None when it isn't one."""
+    text = (text or "").strip().lower()
+    return text if len(text) == 2 and text.isascii() and text.isalpha() else None
+
+
+def parse_timezone(text: str | None) -> str | None:
+    """'europe/copenhagen' -> 'Europe/Copenhagen'. None when there's no such time zone."""
+    text = (text or "").strip()
+    if not text:
+        return None
+    match = next((z for z in available_timezones() if z.lower() == text.lower()), None)
+    try:
+        return match and str(ZoneInfo(match))
+    except ZoneInfoNotFoundError:
+        return None
+
+
+def find_timezones(text: str, limit: int = 25) -> list[str]:
+    """Time zones whose name contains `text` ('copen' -> Europe/Copenhagen), for autocomplete."""
+    text = text.strip().lower().replace(" ", "_")
+    return sorted(z for z in available_timezones() if text in z.lower() and "/" in z)[:limit]
+
+
 @dataclass
 class Defaults:
     """The .env settings, used by servers that haven't set their own."""
@@ -41,6 +72,8 @@ class Defaults:
     read: list[int] = field(default_factory=list)       # READ_CHANNEL_IDS
     posts: dict[str, int | None] = field(default_factory=dict)  # e.g. "deals" -> DEALS_CHANNEL_ID
     admins: set[int] = field(default_factory=set)       # ADMIN_IDS
+    country: str = OTHER_COUNTRY                        # STEAM_COUNTRY
+    timezone: str = OTHER_TIMEZONE                      # TIMEZONE
 
 
 class Settings:
@@ -112,6 +145,28 @@ class Settings:
             return set(stored)
         return set(self.defaults.admins) if self.is_home(guild_id) else set()
 
+    def country(self, guild_id: int | None) -> str:
+        """The two-letter country the server's Steam prices are in."""
+        stored = self._stored(guild_id, "country") if guild_id else None
+        return stored or (self.defaults.country if not guild_id or self.is_home(guild_id) else OTHER_COUNTRY)
+
+    def timezone(self, guild_id: int | None) -> ZoneInfo:
+        """The time zone the server's #GOTG and weekly deals post in."""
+        stored = self._stored(guild_id, "timezone") if guild_id else None
+        return ZoneInfo(stored or (self.defaults.timezone if not guild_id or self.is_home(guild_id)
+                                   else OTHER_TIMEZONE))
+
+    def now(self, guild_id: int | None) -> datetime:
+        """The time of day in the server, without a time zone attached (like datetime.now() on its own clock)."""
+        return datetime.now(self.timezone(guild_id)).replace(tzinfo=None)
+
+    def countries(self, guild_ids) -> dict[str, list[int]]:
+        """country -> the servers whose prices are in it, so each country's prices are fetched once."""
+        by_country: dict[str, list[int]] = {}
+        for gid in guild_ids:
+            by_country.setdefault(self.country(gid), []).append(gid)
+        return by_country
+
     def is_admin(self, guild_id: int | None, user_id: int, can_manage_messages: bool) -> bool:
         """The server's admins may use every command; with none set, its mods (Manage Messages) may."""
         admins = self.admins(guild_id) if guild_id else set(self.defaults.admins)
@@ -135,6 +190,18 @@ class Settings:
         if kind not in POSTS:
             raise ValueError(f"unknown kind of post: {kind}")
         self._store(guild_id, kind, channel_id)
+
+    def set_country(self, guild_id: int, country: str | None):
+        """A two-letter country, or None to go back to the default."""
+        if country is not None and parse_country(country) != country:
+            raise ValueError(f"not a two-letter country code: {country}")
+        self._store(guild_id, "country", country)
+
+    def set_timezone(self, guild_id: int, zone: str | None):
+        """A time zone like Europe/Copenhagen, or None to go back to the default."""
+        if zone is not None and parse_timezone(zone) != zone:
+            raise ValueError(f"unknown time zone: {zone}")
+        self._store(guild_id, "timezone", zone)
 
     def set_admin(self, guild_id: int, user_id: int, on: bool) -> set[int]:
         admins = (self.admins(guild_id) - {user_id}) | ({user_id} if on else set())

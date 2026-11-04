@@ -1,6 +1,7 @@
 import unittest
 
-from guilds import Defaults, Settings, parse_channel, parse_ids
+from guilds import (OTHER_COUNTRY, OTHER_TIMEZONE, Defaults, Settings, find_timezones, parse_channel, parse_country,
+                    parse_ids, parse_timezone)
 from tests.helpers import GUILD_A, GUILD_B, new_db
 
 # Channels the fake Discord knows: 1-3 are in server A, 4 is in server B
@@ -124,6 +125,55 @@ class Setup(unittest.TestCase):
         self.assertEqual(s.set_admin(GUILD_A, 5, True), {5, 99})  # starts from ADMIN_IDS
         self.assertEqual(s.set_admin(GUILD_B, 5, False), set())
         self.assertTrue(s.is_admin(GUILD_B, 6, can_manage_messages=True))  # none left: mods again
+
+
+class CountryAndTimeZone(unittest.TestCase):
+    def test_parsing(self):
+        self.assertEqual(parse_country(" DK"), "dk")
+        self.assertIsNone(parse_country("dnk"))
+        self.assertIsNone(parse_country("d1"))
+        self.assertIsNone(parse_country(""))
+        self.assertEqual(parse_timezone("europe/copenhagen"), "Europe/Copenhagen")
+        self.assertIsNone(parse_timezone("Mars/Base"))
+        self.assertIsNone(parse_timezone(None))
+        self.assertEqual(find_timezones("copen"), ["Europe/Copenhagen"])
+        self.assertIn("America/New_York", find_timezones("new y"))
+
+    def test_home_server_keeps_its_env_settings_others_start_neutral(self):
+        s = settings(country="dk", timezone="Europe/Copenhagen")
+        self.assertEqual(s.country(GUILD_A), "dk")
+        self.assertEqual(str(s.timezone(GUILD_A)), "Europe/Copenhagen")
+        self.assertEqual(s.country(GUILD_B), OTHER_COUNTRY)
+        self.assertEqual(str(s.timezone(GUILD_B)), OTHER_TIMEZONE)
+
+    def test_set_and_back_to_default(self):
+        s = settings(country="dk")
+        s.set_country(GUILD_B, "de")
+        s.set_timezone(GUILD_B, "Europe/Berlin")
+        self.assertEqual(s.country(GUILD_B), "de")
+        self.assertEqual(str(s.timezone(GUILD_B)), "Europe/Berlin")
+        s.set_country(GUILD_B, None)
+        s.set_timezone(GUILD_B, None)
+        self.assertEqual(s.country(GUILD_B), OTHER_COUNTRY)
+        self.assertEqual(str(s.timezone(GUILD_B)), OTHER_TIMEZONE)
+        with self.assertRaises(ValueError):
+            s.set_country(GUILD_B, "DNK")
+        with self.assertRaises(ValueError):
+            s.set_timezone(GUILD_B, "Mars/Base")
+
+    def test_countries_groups_servers_so_each_is_fetched_once(self):
+        s = settings(country="dk")
+        s.set_country(GUILD_B, "dk")
+        self.assertEqual(s.countries([GUILD_A, GUILD_B]), {"dk": [GUILD_A, GUILD_B]})
+        s.set_country(GUILD_B, "us")
+        self.assertEqual(s.countries([GUILD_A, GUILD_B]), {"dk": [GUILD_A], "us": [GUILD_B]})
+
+    def test_now_is_in_the_servers_time_zone(self):
+        s = settings(timezone="Asia/Tokyo")  # no daylight saving: always 9 hours ahead of UTC
+        s.set_timezone(GUILD_B, "UTC")
+        difference = s.now(GUILD_A) - s.now(GUILD_B)
+        self.assertAlmostEqual(difference.total_seconds(), 9 * 3600, delta=5)
+        self.assertIsNone(s.now(GUILD_A).tzinfo)  # compares with the naive times the bot builds from GOTG_TIME
 
 
 if __name__ == "__main__":
