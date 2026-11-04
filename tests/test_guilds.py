@@ -1,8 +1,8 @@
 import unittest
 from types import SimpleNamespace
 
-from guilds import (OTHER_COUNTRY, OTHER_TIMEZONE, Defaults, Settings, find_timezones, parse_channel, parse_country,
-                    parse_ids, parse_timezone, welcome_channel)
+from guilds import (LOCALES, OTHER_COUNTRY, OTHER_TIMEZONE, Defaults, Settings, find_timezones, guess_place,
+                    parse_channel, parse_country, parse_ids, parse_timezone, resolve_timezone, welcome_channel)
 from tests.helpers import GUILD_A, GUILD_B, new_db
 
 # Channels the fake Discord knows: 1-3 are in server A, 4 is in server B
@@ -202,3 +202,26 @@ class Welcome(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SetupForm(unittest.TestCase):
+    def test_guess_place_from_the_servers_language(self):
+        self.assertEqual(guess_place("da"), ("dk", "Europe/Copenhagen"))
+        self.assertEqual(guess_place("xx"), (OTHER_COUNTRY, OTHER_TIMEZONE))
+
+    def test_every_guess_is_a_real_country_and_time_zone(self):
+        for country, zone in LOCALES.values():
+            self.assertEqual(parse_country(country), country)
+            self.assertEqual(parse_timezone(zone), zone)
+
+    def test_resolve_timezone_takes_a_city(self):
+        self.assertEqual(resolve_timezone("europe/copenhagen"), "Europe/Copenhagen")
+        self.assertEqual(resolve_timezone(" Copenhagen "), "Europe/Copenhagen")
+        self.assertIsNone(resolve_timezone("america"))  # many: no guessing
+        self.assertIsNone(resolve_timezone(""))
+
+    def test_is_set(self):
+        s = settings()
+        self.assertFalse(s.is_set(GUILD_A, "country"))
+        s.set_country(GUILD_A, "dk")
+        self.assertTrue(s.is_set(GUILD_A, "country"))
