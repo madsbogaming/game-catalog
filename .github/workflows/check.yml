@@ -11,6 +11,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install pyflakes==4.1.0
+      - run: pip install pyflakes==4.1.0 -r requirements.txt  # the bot's own packages: tests/test_web.py loads web.py
       - run: pyflakes *.py tools/*.py tests/*.py
-      - run: python -m unittest -v  # standard library only, so nothing to install
+      - run: python -m unittest -v
