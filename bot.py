@@ -459,10 +459,17 @@ class GameBot(commands.Bot):
             asyncio.create_task(self.share_tunnel())
         # Global commands, so every server the bot is in gets them. Older versions gave the home server its own copies
         # (they showed up faster); those are cleared, or the home server would list every command twice.
-        await self.tree.sync()
+        await self.sync_global_commands()
         if GUILD_ID:
             self.tree.clear_commands(guild=discord.Object(GUILD_ID))
             await self.tree.sync(guild=discord.Object(GUILD_ID))
+
+    async def sync_global_commands(self):
+        """What tree.sync() does for the global commands, but keeping the Activity's Entry Point command (the
+        "launch" that opens the catalog). Discord refuses an update that leaves it out, and discord.py doesn't send it."""
+        entry_points = [c for c in await self.http.get_global_commands(self.application_id) if c.get("type") == 4]
+        payload = [command.to_dict(self.tree) for command in self.tree.get_commands()] + entry_points
+        await self.http.bulk_upsert_global_commands(self.application_id, payload=payload)
 
     async def share_tunnel(self):
         """Start the public tunnel and DM the admins its address, which changes on every start
