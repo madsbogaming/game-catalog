@@ -90,7 +90,7 @@ Then run `/backfill` in your games channel to import what's already been posted.
 
 **Catching up:** while running and connected to Discord, the bot notes the time every minute (not while the internet is down, so an outage counts as offline time too). When it starts, it goes through what was posted in the watched channels since then and handles game links as if they had just been posted (posts it already answered, e.g. turned away, are left alone), counts 🎮 reactions on game posts from the last 7 days, and marks people already playing a catalog game as playing.
 
-The bot only works while this program is running. To keep it online 24/7, run it on an always-on machine: a Raspberry Pi, a home server, or a small VPS/bot host. The whole catalog is stored in `catalog.db`, so copy that file along if you move the bot.
+The bot only works while this program is running. To keep it online 24/7, run it on an always-on machine. [SERVER.md](SERVER.md) shows how it runs on a small Hetzner server, and how to put new code live there.
 
 ## Notes
 - Instagram blocks a lot of scraping, so a reel's caption and thumbnail are best-effort. Discord's own link preview is used as a fallback. The link itself is always saved.

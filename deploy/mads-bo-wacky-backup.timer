@@ -1,0 +1,10 @@
+# Every night at 04:00 (server time, UTC), or right after boot if the server was off then.
+[Unit]
+Description=Nightly backup of the Game Catalog bot's database
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

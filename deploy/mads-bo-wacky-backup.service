@@ -1,0 +1,9 @@
+# Copies catalog.db to BACKUP_DIR (from .env) and keeps the newest 30 copies. Run every night by the timer.
+[Unit]
+Description=Back up the Game Catalog bot's database
+
+[Service]
+Type=oneshot
+User=bot
+WorkingDirectory=/opt/mads-bo-wacky
+ExecStart=/opt/mads-bo-wacky/.venv/bin/python tools/backup_db.py

@@ -47,6 +47,10 @@ PUBLIC_TUNNEL = os.getenv("PUBLIC_TUNNEL", "true").lower() in ("1", "true", "yes
 PUBLIC_URL = os.getenv("PUBLIC_URL", "").strip().rstrip("/")
 # Steam Web API key (https://steamcommunity.com/dev/apikey): lets ratings show real Steam hours. Optional.
 STEAM_API_KEY = os.getenv("STEAM_API_KEY", "").strip()
+# An uptime monitor's ping address (e.g. https://hc-ping.com/<uuid> from Healthchecks.io). Optional: when set, the bot
+# pings it every UPTIME_PING_MINUTES while it's connected to Discord, and the monitor emails us when the pings stop.
+HEALTHCHECK_URL = os.getenv("HEALTHCHECK_URL", "").strip()
+UPTIME_PING_MINUTES = 5
 TRACK_MINUTES = 5  # how often the bot counts who's playing what in Discord (each look adds this much time)
 PLAYING_GRACE_MINUTES = 10  # a "Playing" mark the bot set goes this long after Discord and Steam stop showing the game
 REFUND_MAX_MINUTES = 120  # Steam refunds only games played less than 2 hours
@@ -433,6 +437,7 @@ class GameBot(commands.Bot):
         self._titles: dict[int, tuple[float, dict[str, int]]] = {}  # guild -> (built at, normalized title -> entry id)
         self._catching_up = False
         self._connected = False  # to Discord right now (the heartbeat only counts that time as "online")
+        self._last_uptime_ping = 0.0
         self.web: aiohttp.ClientSession | None = None
         self.site = CatalogSite(self, WEB_PORT, GUILD_ID, os.getenv("DISCORD_CLIENT_SECRET", "").strip())
         self.site.played_deadline = PLAYED_RULE_DEADLINE
@@ -1089,6 +1094,19 @@ class GameBot(commands.Bot):
         was gone are skipped later (that's how two Steam links were missed on 2 Nov)."""
         if self._connected:
             self.db.set_meta("last_seen", int(time.time()))
+            await self.ping_uptime()
+
+    async def ping_uptime(self):
+        """Tell the uptime monitor (HEALTHCHECK_URL, e.g. Healthchecks.io) that the bot is up and connected. When the
+        pings stop for a few minutes, the monitor emails us. Only every UPTIME_PING_MINUTES, and never fatal."""
+        if not HEALTHCHECK_URL or time.time() - self._last_uptime_ping < UPTIME_PING_MINUTES * 60:
+            return
+        self._last_uptime_ping = time.time()
+        try:
+            async with self.web.get(HEALTHCHECK_URL, timeout=aiohttp.ClientTimeout(total=10)):
+                pass
+        except Exception as exc:  # the monitor being down is no reason to stop the bot
+            log.warning("Couldn't ping the uptime monitor: %s", exc)
 
     async def catch_up(self):
         """Handle what was posted and reacted to in the watched channels while the bot was offline:

@@ -2,8 +2,9 @@ r"""Copy catalog.db to a backup folder (OneDrive by default) and keep the newest
 
     .venv\Scripts\python.exe tools\backup_db.py
 
-Run every night by the "Game catalog bot backup" task in Windows Task Scheduler. Safe while the bot is running:
-SQLite's backup API copies a consistent snapshot. Set BACKUP_DIR in .env to back up somewhere else.
+Run every night by deploy/mads-bo-wacky-backup.timer on the server (or a Task Scheduler task on Windows). Safe
+while the bot is running: SQLite's backup API copies a consistent snapshot. Set BACKUP_DIR in .env to back up
+somewhere else.
 """
 
 import os
