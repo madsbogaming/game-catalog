@@ -31,6 +31,27 @@ OPT_IN = {"updates"}
 # Without a setting of its own, a kind of post goes where another one goes (free games: the first watched channel)
 FALLBACK = {"deals": "free_games", "played_rule": "achievements"}
 
+# A server's language (Discord's "preferred locale") -> the country and time zone the setup form suggests.
+# Only a guess: many servers keep the default en-US whatever country they're in, so the form lets it be changed.
+LOCALES = {
+    "bg": ("bg", "Europe/Sofia"), "cs": ("cz", "Europe/Prague"), "da": ("dk", "Europe/Copenhagen"),
+    "de": ("de", "Europe/Berlin"), "el": ("gr", "Europe/Athens"), "en-GB": ("gb", "Europe/London"),
+    "en-US": ("us", "America/New_York"), "es-ES": ("es", "Europe/Madrid"), "es-419": ("mx", "America/Mexico_City"),
+    "fi": ("fi", "Europe/Helsinki"), "fr": ("fr", "Europe/Paris"), "hi": ("in", "Asia/Kolkata"),
+    "hr": ("hr", "Europe/Zagreb"), "hu": ("hu", "Europe/Budapest"), "id": ("id", "Asia/Jakarta"),
+    "it": ("it", "Europe/Rome"), "ja": ("jp", "Asia/Tokyo"), "ko": ("kr", "Asia/Seoul"),
+    "lt": ("lt", "Europe/Vilnius"), "nl": ("nl", "Europe/Amsterdam"), "no": ("no", "Europe/Oslo"),
+    "pl": ("pl", "Europe/Warsaw"), "pt-BR": ("br", "America/Sao_Paulo"), "ro": ("ro", "Europe/Bucharest"),
+    "ru": ("ru", "Europe/Moscow"), "sv-SE": ("se", "Europe/Stockholm"), "th": ("th", "Asia/Bangkok"),
+    "tr": ("tr", "Europe/Istanbul"), "uk": ("ua", "Europe/Kyiv"), "vi": ("vn", "Asia/Ho_Chi_Minh"),
+    "zh-CN": ("cn", "Asia/Shanghai"), "zh-TW": ("tw", "Asia/Taipei"),
+}
+
+
+def guess_place(locale) -> tuple[str, str]:
+    """(country, time zone) for a server in this language, e.g. "da" -> ("dk", "Europe/Copenhagen")."""
+    return LOCALES.get(str(locale), (OTHER_COUNTRY, OTHER_TIMEZONE))
+
 
 def welcome_channel(guild):
     """Where to greet a server the bot was just added to: its system channel (where Discord announces new members),
@@ -69,6 +90,14 @@ def parse_timezone(text: str | None) -> str | None:
         return match and str(ZoneInfo(match))
     except ZoneInfoNotFoundError:
         return None
+
+
+def resolve_timezone(text: str | None) -> str | None:
+    """A time zone from what someone typed: its full name, or a city only one time zone has ('copenhagen')."""
+    if zone := parse_timezone(text):
+        return zone
+    found = find_timezones(text or "") if (text or "").strip() else []
+    return found[0] if len(found) == 1 else None
 
 
 def find_timezones(text: str, limit: int = 25) -> list[str]:
@@ -111,6 +140,10 @@ class Settings:
         self.db.set_guild_meta(guild_id, f"setting:{key}", None if value is None else json.dumps(value))
 
     # -- reading --
+
+    def is_set(self, guild_id: int, key: str) -> bool:
+        """Whether the server picked this setting itself (with /setup or the setup form)."""
+        return self._stored(guild_id, key) is not None
 
     def watch_channels(self, guild_id: int) -> list[int]:
         """The channels whose game links go into the server's catalog (threads inside them count too)."""

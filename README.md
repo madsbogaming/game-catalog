@@ -23,7 +23,7 @@ It's free, and it runs around the clock. You need **Manage Server** on the serve
 
 <p align="center"><a href="https://discord.com/oauth2/authorize?client_id=1565754087776067584&permissions=274878024768&integration_type=0&scope=bot+applications.commands"><b>Add Game Catalog to Discord</b></a></p>
 
-Then set it up in a minute:
+Then set it up in a minute. The bot says hello with a **Set up** button that opens one form for all of it: your games channel, the games already posted there, your country and time zone, and where #GOTG, deals and free games go. `/setup form` opens it again later. Or do it one step at a time:
 
 1. **Pick your games channel:** `/setup watch` in the channel where people post games.
 2. **Import what's already there:** `/backfill` in that channel.

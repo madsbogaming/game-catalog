@@ -21,8 +21,8 @@ import sources
 import gotg
 from catalog_html import render_catalog
 from db import PLAYERS_NEEDED, STATUSES, Database
-from guilds import (POSTS, Defaults, Settings, find_timezones, parse_channel, parse_country, parse_ids,
-                    parse_timezone, welcome_channel)
+from guilds import (POSTS, Defaults, Settings, find_timezones, guess_place, parse_channel, parse_country, parse_ids,
+                    parse_timezone, resolve_timezone, welcome_channel)
 from web import CatalogSite
 
 load_dotenv()
@@ -93,7 +93,13 @@ DEFAULTS = Defaults(home_guild=GUILD_ID, watch=WATCH_CHANNELS, read=READ_CHANNEL
     "free_games": FREE_GAMES_CHANNEL_ID, "deals": DEALS_CHANNEL_ID, "achievements": ACHIEVEMENTS_CHANNEL_ID,
     "played_rule": PLAYED_RULE_CHANNEL_ID, "gotg": GOTG_CHANNEL_ID})
 
-# What a server the bot was just added to sees first: what it does and the setup steps (the same as the README's)
+# What a server the bot was just added to sees first: what it does, and a "Set up" button that opens the setup form
+WELCOME_FORM = """**Thanks for adding Game Catalog!** It turns the games you post in Discord into one catalog everyone can browse, vote on and play from.
+
+Press **Set up** to pick the channel where you post games, your country and your time zone, all in one form (you need Manage Messages). Then post a Steam link and watch it land in `/catalog`.
+-# Change anything later with `/setup form`, or one thing at a time with `/setup`. Need help? Ask at <https://github.com/madsbogaming/game-catalog/discussions>"""
+# ...and in a DM to the owner when it can't post anywhere in the server (a form can't pick a server's channels from a
+# DM): the setup steps as commands (the same as the README's)
 WELCOME = """**Thanks for adding Game Catalog!** It turns the games you post in Discord into one catalog everyone can browse, vote on and play from.
 
 Set it up in a minute (you need Manage Messages):
@@ -477,6 +483,7 @@ class GameBot(commands.Bot):
         self.add_dynamic_items(OpenCatalogButton)  # "Open the catalog" on the achievements launch post
         self.add_dynamic_items(CheckPlayedButton, PlayedAnswerButton)  # "Have you played these?"
         self.add_dynamic_items(GotgInButton)  # "I'm in" on the #GOTG posts
+        self.add_dynamic_items(SetupButton)  # "Set up" on the welcome message
         await self.site.start()
         # These run for every server; a server whose channel for them is turned off is skipped
         self.post_free_games.start()
@@ -1165,7 +1172,7 @@ class GameBot(commands.Bot):
         channel = welcome_channel(guild)
         try:
             if channel:
-                await channel.send(self.command_refs(WELCOME))
+                await channel.send(self.command_refs(WELCOME_FORM), view=ui.View(timeout=None).add_item(SetupButton()))
                 log.info("Welcomed %s in #%s", guild.name, channel.name)
             elif guild.owner:
                 await guild.owner.send(f"Hi! I was just added to **{guild.name}**, but I can't post in any of its "
@@ -2007,6 +2014,17 @@ async def backfill(interaction: discord.Interaction, channel: discord.TextChanne
             "I only read the channels picked with `/setup watch` and `/setup read`. See them with `/setup show`.",
             ephemeral=True)
     await interaction.response.defer(thinking=True)
+    scanned, new, known = await backfill_channel(channel, limit)
+    summary = (f"Scanned {scanned} messages in {channel.mention}: {new} new games/reels archived, "
+               f"{known} links were already known.")
+    try:
+        await interaction.followup.send(summary)
+    except discord.HTTPException:  # the reply window closes after 15 minutes; long scans post in the channel
+        await interaction.channel.send(summary)
+
+
+async def backfill_channel(channel: discord.TextChannel, limit: int | None = None) -> tuple[int, int, int]:
+    """Adds the game links already posted in a channel: (messages scanned, new games/reels, links already known)."""
     messages = [m async for m in channel.history(limit=limit)]
     messages.reverse()  # oldest first, so "added by" goes to whoever posted it first
     new = known = 0
@@ -2024,12 +2042,7 @@ async def backfill(interaction: discord.Interaction, channel: discord.TextChanne
                         if not user.bot and await bot.still_member(channel.guild, user.id) is not False:
                             for entry_id in bot.db.entries_for_message(msg.id):
                                 bot.db.add_interest(entry_id, user.id, user.display_name)
-    summary = (f"Scanned {len(messages)} messages in {channel.mention}: {new} new games/reels archived, "
-               f"{known} links were already known.")
-    try:
-        await interaction.followup.send(summary)
-    except discord.HTTPException:  # the reply window closes after 15 minutes; long scans post in the channel
-        await interaction.channel.send(summary)
+    return len(messages), new, known
 
 
 # -- /setup: each server's own channels and admins (guilds.py) -----------------
@@ -2157,6 +2170,137 @@ async def setup_timezone(interaction: discord.Interaction, timezone: str | None 
         f"Time zone: **{bot.settings.timezone(gid)}** (it's {bot.settings.now(gid):%H:%M} there now). #GOTG posts at "
         f"{GOTG_TIME:%H:%M} and the weekly deals on {days[DEALS_DAY]}s at {DEALS_HOUR}:00, both in that time.",
         ephemeral=True)
+
+
+# -- The setup form: the welcome message's "Set up" button and /setup form open it -----------------
+
+GAME_CHANNELS = [discord.ChannelType.text, discord.ChannelType.news]
+FORM_POSTS = ("gotg", "deals", "free_games")  # the posts the form's last question picks one channel for
+
+
+class SetupForm(ui.Modal):
+    """Everything a server needs, in one form: where games are posted, prices, time zone and where the bot posts.
+    It opens filled in with what the server has now (country and time zone guessed from its language until it picks
+    them), and only what was changed is saved, so sending it unchanged changes nothing."""
+
+    def __init__(self, guild: discord.Guild):
+        super().__init__(title="Set up Game Catalog", timeout=3600)
+        s, gid = bot.settings, guild.id
+        self.guild = guild
+        self.watched = [c for c in s.watch_channels(gid) if guild.get_channel(c)]
+        country, zone = guess_place(guild.preferred_locale)
+        self.country_was, self.zone_was = s.country(gid), str(s.timezone(gid))
+        if s.is_home(gid) or s.is_set(gid, "country"):
+            country = self.country_was
+        if s.is_home(gid) or s.is_set(gid, "timezone"):
+            zone = self.zone_was
+        self.posts_was = next((c for c in (bot.post_channel(guild, k) for k in FORM_POSTS) if c), None)
+
+        self.watch = ui.ChannelSelect(channel_types=GAME_CHANNELS, min_values=1, max_values=10, required=True,
+                                      placeholder="Pick channels",
+                                      default_values=[guild.get_channel(c) for c in self.watched])
+        self.backfill = ui.Checkbox(default=not self.watched)
+        self.country = ui.TextInput(default=country.upper(), min_length=2, max_length=2, placeholder="e.g. DK")
+        self.zone = ui.TextInput(default=zone, max_length=64, placeholder="e.g. Europe/Copenhagen or Copenhagen")
+        self.posts = ui.ChannelSelect(channel_types=GAME_CHANNELS, min_values=0, max_values=1, required=False,
+                                      placeholder="Don't post them",
+                                      default_values=[self.posts_was] if self.posts_was else [])
+        self.add_item(ui.Label(text="Where you post games", component=self.watch,
+                               description="Steam links posted here go into the catalog"))
+        self.add_item(ui.Label(text="Add the games already posted there", component=self.backfill,
+                               description="Scans those channels for older links. A big channel takes a few minutes"))
+        self.add_item(ui.Label(text="Country", component=self.country,
+                               description="Two letters. Steam prices are shown in its currency"))
+        self.add_item(ui.Label(text="Time zone", component=self.zone,
+                               description="When #GOTG and the weekly deals are posted"))
+        self.add_item(ui.Label(text="Where #GOTG, deals and free games go", component=self.posts,
+                               description="Leave it empty and I won't post them"))
+
+    async def on_submit(self, interaction: discord.Interaction):
+        if not may_set_up(interaction):
+            return await interaction.response.send_message(NOT_SETUP_ADMIN, ephemeral=True)
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        s, gid, guild, notes = bot.settings, self.guild.id, self.guild, []
+        chosen = [c.id for c in self.watch.values]
+        for c in self.watched:
+            if c not in chosen:
+                s.set_watched(gid, c, False)
+        for c in chosen:
+            if c not in self.watched:
+                s.set_watched(gid, c, True)
+
+        typed = self.country.value.strip()
+        if not (country := parse_country(typed)):
+            notes.append(f"“{typed}” isn't a two-letter country code, so prices stay in {self.country_was.upper()}.")
+        elif country != self.country_was:
+            s.set_country(gid, country)
+            asyncio.create_task(bot.refresh_prices())  # so the catalog doesn't show the old currency until then
+        typed = self.zone.value.strip()
+        if not (zone := resolve_timezone(typed)):
+            notes.append(f"“{typed}” isn't a time zone I know, so I kept {self.zone_was}. Try a city, e.g. Copenhagen.")
+        elif zone != self.zone_was:
+            s.set_timezone(gid, zone)
+
+        posts = self.posts.values[0].id if self.posts.values else 0
+        if posts != (self.posts_was.id if self.posts_was else 0):
+            for kind in FORM_POSTS:
+                s.set_post_channel(gid, kind, posts)
+        elif not posts:  # all off when the form opened: keep them off, now that free games could fall back to a
+            for kind in FORM_POSTS:  # watched channel
+                if bot.post_channel(guild, kind):
+                    s.set_post_channel(gid, kind, 0)
+        log.info("%s used the setup form in %s", interaction.user.display_name, guild.name)
+
+        text = "\n".join(notes + [""] if notes else []) + setup_summary(guild)
+        view = ui.View(timeout=None).add_item(SetupButton("Change something"))
+        await interaction.followup.send(bot.command_refs(text), view=view, ephemeral=True)
+        if self.backfill.value:
+            await self.add_old_games(interaction, [guild.get_channel(c) for c in chosen])
+
+    async def add_old_games(self, interaction: discord.Interaction, channels: list):
+        lines = []
+        for channel in filter(None, channels):
+            try:
+                scanned, new, known = await backfill_channel(channel)
+                lines.append(f"{channel.mention}: {new} games added from {scanned} messages"
+                             + (f" ({known} were in already)" if known else ""))
+            except discord.Forbidden:
+                lines.append(f"{channel.mention}: I can't read its history. Let me read it, then run `/backfill` there.")
+        log.info("The setup form added the older games in %s: %s", self.guild.name, "; ".join(lines))
+        try:  # after 15 minutes the reply can't be sent any more; the games are in the catalog either way
+            await interaction.followup.send(bot.command_refs("**Older games:**\n" + "\n".join(lines)), ephemeral=True)
+        except discord.HTTPException:
+            pass
+
+
+NOT_SETUP_ADMIN = "Only the server's admins can set me up (people with Manage Messages). Ask one of them to press it."
+
+
+def may_set_up(interaction: discord.Interaction) -> bool:
+    return interaction.guild is not None and bot.settings.is_admin(interaction.guild_id, interaction.user.id,
+                                                                    interaction.permissions.manage_messages)
+
+
+class SetupButton(ui.DynamicItem[ui.Button], template=r"setup-form"):
+    """Opens the setup form. Dynamic, so the welcome message's button still works after the bot restarts."""
+
+    def __init__(self, label: str = "Set up"):
+        super().__init__(ui.Button(label=label, style=discord.ButtonStyle.primary, custom_id="setup-form"))
+
+    @classmethod
+    async def from_custom_id(cls, interaction: discord.Interaction, item: ui.Button, match):
+        return cls()
+
+    async def callback(self, interaction: discord.Interaction):
+        if not may_set_up(interaction):
+            return await interaction.response.send_message(NOT_SETUP_ADMIN, ephemeral=True)
+        await interaction.response.send_modal(SetupForm(interaction.guild))
+
+
+@setup.command(name="form", description="Set up everything at once in a form: channels, country, time zone, posts")
+@app_commands.check(is_admin)
+async def setup_form(interaction: discord.Interaction):
+    await interaction.response.send_modal(SetupForm(interaction.guild))
 
 
 if __name__ == "__main__":

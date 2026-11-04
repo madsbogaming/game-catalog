@@ -30,6 +30,7 @@ A Discord bot that watches your server for **Steam store links** and **Instagram
 | `/remove` | Remove a game. |
 | `/allow` | Let a game in even though its Steam page breaks the rules (e.g. playable online but Steam only lists split screen). It's added, credited to whoever posted it first, and stays allowed. |
 | `/backfill` | Archive links posted before the bot joined. Reads the whole channel unless you give a `limit`. |
+| `/setup form` | Set up everything at once in a form: the channels where games are posted (and add the ones already there), country, time zone, and one channel for #GOTG, deals and free games (empty: off). It opens filled in with the server's settings, and only what you change is saved. The **Set up** button on the bot's welcome message opens the same form. |
 | `/setup show` | See which channels the bot reads and posts in on this server, and who its admins are. |
 | `/setup watch` | Put game links from a channel into the catalog (`on: False` stops it). Run `/backfill` there afterwards for the older links. |
 | `/setup read` | Let the bot read a channel or thread without adding its links, e.g. a feedback thread. |
@@ -44,7 +45,7 @@ Everyone can use `/catalog`, `/random` and `/link`. All other commands are only 
 
 One bot can serve any number of servers. Each server has its own catalog, votes, ratings, achievements, #GOTG and weekly deals; nothing is shared between them. Steam libraries and hours belong to a person, so they count in every server that person is in, and only there.
 
-The channels in `.env` are the defaults for the server they're in. A server the bot is added to later gets a hello with the setup steps (in its system channel, or else the first channel the bot may post in, or else a DM to the server's owner), and starts with nothing watched: a mod runs `/setup watch` on its games channel, then `/backfill` there. Its free games, deals and achievements go to the first watched channel unless `/setup post` picks another one, and #GOTG is off until `/setup post` picks a channel (only the home server falls back to a channel named `GOTG_CHANNEL_NAME`). Its prices come from Steam's US store and its posts go by UTC until `/setup country` and `/setup timezone` change them.
+The channels in `.env` are the defaults for the server they're in. A server the bot is added to later gets a hello (in its system channel, or else the first channel the bot may post in) with a **Set up** button that opens the setup form (`/setup form`), with the country and time zone guessed from the server's language. If it can't post anywhere, the server's owner gets the setup steps as commands in a DM instead, since a form opened from a DM can't pick the server's channels. It starts with nothing watched: a mod picks its games channel in the form, or runs `/setup watch` there and then `/backfill`. Its free games, deals and achievements go to the first watched channel unless `/setup post` picks another one, and #GOTG is off until `/setup post` picks a channel (only the home server falls back to a channel named `GOTG_CHANNEL_NAME`). Its prices come from Steam's US store and its posts go by UTC until `/setup country` and `/setup timezone` change them.
 
 ## Setup
 
