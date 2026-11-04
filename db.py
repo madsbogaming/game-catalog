@@ -195,6 +195,10 @@ GUILD_META_KEYS = ("allowed_apps", "deals_posted", "achievements_started", "achi
                    "achievement_keys", "refund_title", "refund_title_from", "achievement_ping:", "played_rule_post",
                    "played_rule_progress", "played_rule_reminded")
 
+# What one person did with one game, deleted from a server's games when they leave it (forget_member)
+PERSONAL_TABLES = ("interest", "playing", "ratings", "refunds", "seen_games", "tracked_playtime", "played_answers",
+                   "gotg_in")
+
 JSON_FIELDS = {"genres", "tags", "custom_tags", "categories", "clips"}
 COLUMNS = {
     "kind", "key", "url", "title", "description", "image", "developer", "genres", "tags",
@@ -760,6 +764,38 @@ class Database:
     def remove_member(self, guild_id: int, user_id: int):
         self.conn.execute("DELETE FROM guild_members WHERE guild_id = ? AND user_id = ?", (guild_id, user_id))
         self.conn.commit()
+
+    def people_in(self, guild_id: int) -> set[int]:
+        """Everyone the server's data is about: who wants, plays, rated, refunded or added its games, its achievements,
+        its members as last known, and everyone with Steam linked (their hours count in the servers they're in)."""
+        ids = set()
+        for table in PERSONAL_TABLES:
+            ids.update(r[0] for r in self.conn.execute(
+                f"SELECT DISTINCT t.user_id FROM {table} t JOIN entries e ON e.id = t.entry_id WHERE e.guild_id = ?",
+                (guild_id,)))
+        for sql in ("SELECT user_id FROM achievements WHERE guild_id = ?",
+                    "SELECT added_by FROM entries WHERE guild_id = ? AND added_by IS NOT NULL",
+                    "SELECT user_id FROM guild_members WHERE guild_id = ?"):
+            ids.update(r[0] for r in self.conn.execute(sql, (guild_id,)))
+        ids.update(r[0] for r in self.conn.execute("SELECT user_id FROM steam_accounts"))
+        return ids
+
+    def forget_member(self, guild_id: int, user_id: int) -> int:
+        """Someone left the server: delete what they did there (wants, playing, ratings, refunds, played answers, time
+        seen playing, #GOTG answers, achievements) and their name on the games they added. The games stay.
+        -> how many rows changed."""
+        in_guild = "entry_id IN (SELECT id FROM entries WHERE guild_id = ?)"
+        with self.conn:
+            changed = sum(self.conn.execute(f"DELETE FROM {table} WHERE user_id = ? AND {in_guild}",
+                                            (user_id, guild_id)).rowcount for table in PERSONAL_TABLES)
+            changed += self.conn.execute("DELETE FROM achievements WHERE guild_id = ? AND user_id = ?",
+                                         (guild_id, user_id)).rowcount
+            changed += self.conn.execute("UPDATE entries SET added_by = NULL, added_by_name = NULL "
+                                         "WHERE guild_id = ? AND added_by = ?", (guild_id, user_id)).rowcount
+            self.conn.execute("DELETE FROM guild_meta WHERE guild_id = ? AND key = ?",
+                              (guild_id, f"achievement_ping:{user_id}"))
+            self.conn.execute("DELETE FROM guild_members WHERE guild_id = ? AND user_id = ?", (guild_id, user_id))
+        return changed
 
     def last_tagged(self, sender_id: int, target_id: int) -> int | None:
         row = self.conn.execute("SELECT tagged_at FROM tags WHERE sender_id = ? AND target_id = ?",
