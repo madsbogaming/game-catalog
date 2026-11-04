@@ -444,6 +444,7 @@ main { --cols:99; --gap:clamp(10px, 1.2vw, 16px); display:grid; gap:var(--gap);
 .pf-confirm { display:flex; flex-direction:column; gap:8px; background:#232428; border-radius:8px; padding:10px 12px; font-size:13px; }
 .pf-confirm .pf-row { display:flex; gap:8px; }
 .empty { grid-column:1/-1; text-align:center; color:var(--muted); padding:48px 0; }
+body.waiting .stats { visibility:hidden; }  /* a locked catalog's counts are 0 until its games load */
 .section { grid-column:1/-1; margin:16px 0 0; font-size:18px; display:flex; align-items:center; gap:8px; }
 .section:first-child { margin-top:0; }
 .section span { font-size:13px; font-weight:600; color:var(--muted); background:var(--chip); border-radius:999px; padding:1px 9px; }
@@ -1050,6 +1051,16 @@ function menuInUse() {
 // saving: changes still waiting to be saved (status, played answers); saveCount goes up as each save to the bot
 // starts and ends, so a live reload that downloaded the catalog meanwhile knows it may hold the old answer
 let redrawWaiting = false, saving = 0, saveCount = 0, reloadNow = false;
+// Another server's catalog comes without its games: they load as soon as you're signed in as one of its members.
+// Until then the grid says so (instead of "No games match"), and the empty counts are hidden.
+let waitMsg = CONFIG.locked ? "Loading this server's games…" : "";
+let checkNow = () => {};  // the live check, run right away (set below)
+function setWait(msg) {
+  waitMsg = msg;
+  document.body.classList.toggle("waiting", !!msg);
+  render();
+}
+document.body.classList.toggle("waiting", !!waitMsg);
 function renderWhenFree() {
   if (menuInUse()) { redrawWaiting = true; return; }
   redrawWaiting = false;
@@ -1102,7 +1113,7 @@ async function signIn() {
     if (res.status === 401) signOut();  // expired or revoked: back to the sign-in button
     if (!res.ok) throw new Error("sign-in check failed: HTTP " + res.status);
     me = (await res.json()).id;
-    if (CONFIG.locked) reloadNow = true;  // another server's catalog: its games load now that we know who you are
+    if (CONFIG.locked) { reloadNow = true; checkNow(); }  // another server's catalog: its games load now
     return;
   }
   const { code } = await sdk.commands.authorize({
@@ -1112,7 +1123,7 @@ async function signIn() {
   if (!res.ok) throw new Error("sign-in failed: HTTP " + res.status);
   token = (await res.json()).access_token;
   me = (await sdk.commands.authenticate({ access_token: token })).user.id;
-  if (CONFIG.locked) reloadNow = true;
+  if (CONFIG.locked) { reloadNow = true; checkNow(); }
 }
 // Who's asking, for the catalog's own data: another server's catalog is only sent to its signed-in members
 const authHeaders = () => token ? { headers: { Authorization: "Bearer " + token } } : {};
@@ -1477,8 +1488,14 @@ if (BROWSER_SIGNIN) {
     s.innerHTML = `${icon("users")}Sign in with Discord`;
     s.href = CONFIG.publicUrl + "/auth/login";
   }
-  if (CAN_WANT) signIn().then(() => { renderWhenFree(); }).catch((err) => console.warn("Not signed in", err));
-  else if (CONFIG.locked) toast("Sign in with Discord to see this server's catalog");
+  if (CAN_WANT) signIn().then(() => { renderWhenFree(); }).catch((err) => {
+    console.warn("Not signed in", err);
+    if (waitMsg) setWait("Sign in with Discord to see this server's games.");
+  });
+  else if (CONFIG.locked) {
+    toast("Sign in with Discord to see this server's catalog");
+    waitMsg = "Sign in with Discord to see this server's games.";  // shown by the first render, further down
+  }
 }
 
 // -- "Ping to play": pick who to ping for a game (everyone who wants it is ticked), then ping them --
@@ -1943,7 +1960,7 @@ function render() {
   } else {
     parts = rows.map(card);
   }
-  drawGrid(rows.length ? parts : [`<div class="empty">No games match.</div>`]);
+  drawGrid(rows.length ? parts : [`<div class="empty">${waitMsg ? esc(waitMsg) : "No games match."}</div>`]);
   renderCatchUp();
   // Games 2 or more of us played in the past week (the server keeps the week): the most players first, then the latest
   const playing = DATA.filter((e) => e.recent.length >= 2)
@@ -2145,7 +2162,7 @@ if (CONFIG.live) {
   // A reload waits while your own changes are being saved, and is dropped if one was saved while it downloaded
   // (it may hold your old answer): the next check loads it again. One check at a time, even on a slow connection.
   let version = null, checking = false;
-  setInterval(async () => {
+  const check = async () => {
     if (document.hidden || menuInUse() || checking) return;  // don't redraw under an open menu
     if (redrawWaiting) renderWhenFree();
     checking = true;
@@ -2154,11 +2171,17 @@ if (CONFIG.live) {
       if ((version !== null && v !== version) || reloadNow) {
         const seq = saveCount;
         const res = await fetch("/data.json" + location.search, authHeaders());
+        if (res.status === 403 && waitMsg) {  // signed in, but not in this server
+          reloadNow = false;
+          setWait("Only members of this server can see its catalog.");
+          return;
+        }
         if (!res.ok) return;
         const body = await res.json();
         if (saving || seq !== saveCount) return;
         ({ games: DATA, users: USERS } = body);
         reloadNow = false;
+        if (waitMsg) { waitMsg = ""; document.body.classList.remove("waiting"); }
         buildGenres();
         renderWhenFree();
       }
@@ -2167,7 +2190,9 @@ if (CONFIG.live) {
     } finally {
       checking = false;
     }
-  }, 3000);
+  };
+  setInterval(check, 3000);
+  checkNow = check;
   // Who's online changes without the catalog changing: the dots are fetched on their own, and set in place
   setInterval(async () => {
     if (document.hidden || (CONFIG.locked && !token)) return;
@@ -2197,7 +2222,10 @@ if (IN_DISCORD) {
     })
       .catch((err) => console.warn("No layout updates", err));
     // Sign in right away so the buttons show which games you already want (asks for permission only once).
-    if (CAN_WANT) signIn().then(() => { renderWhenFree(); activityTip(); }).catch((err) => console.warn("Not signed in yet", err));
+    if (CAN_WANT) signIn().then(() => { renderWhenFree(); activityTip(); }).catch((err) => {
+      console.warn("Not signed in yet", err);
+      if (waitMsg) setWait("Couldn't sign you in, so this server's games can't load. Close the catalog and open it again.");
+    });
     document.addEventListener("click", async (ev) => {
       const a = ev.target.closest("a[href^='http']");
       if (!a) return;
