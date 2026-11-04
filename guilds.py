@@ -29,6 +29,16 @@ POSTS = {
 FALLBACK = {"deals": "free_games", "played_rule": "achievements"}
 
 
+def welcome_channel(guild):
+    """Where to greet a server the bot was just added to: its system channel (where Discord announces new members),
+    else the first text channel the bot may post in. None: nowhere, so the owner gets a DM instead."""
+    def can_post(channel):
+        return channel is not None and channel.permissions_for(guild.me).send_messages
+    if can_post(guild.system_channel):
+        return guild.system_channel
+    return next((c for c in guild.text_channels if can_post(c)), None)
+
+
 def parse_ids(text: str | None) -> list[int]:
     """'1, 2,3' -> [1, 2, 3] in the order given, each once."""
     return list(dict.fromkeys(int(p) for p in (text or "").replace(" ", "").split(",") if p))

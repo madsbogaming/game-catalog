@@ -44,7 +44,7 @@ Everyone can use `/catalog`, `/random` and `/link`. All other commands are only 
 
 One bot can serve any number of servers. Each server has its own catalog, votes, ratings, achievements, #GOTG and weekly deals; nothing is shared between them. Steam libraries and hours belong to a person, so they count in every server that person is in, and only there.
 
-The channels in `.env` are the defaults for the server they're in. A server the bot is added to later starts with nothing watched: a mod runs `/setup watch` on its games channel, then `/backfill` there. Its free games, deals and achievements go to the first watched channel unless `/setup post` picks another one, and #GOTG is off until `/setup post` picks a channel (only the home server falls back to a channel named `GOTG_CHANNEL_NAME`). Its prices come from Steam's US store and its posts go by UTC until `/setup country` and `/setup timezone` change them.
+The channels in `.env` are the defaults for the server they're in. A server the bot is added to later gets a hello with the setup steps (in its system channel, or else the first channel the bot may post in, or else a DM to the server's owner), and starts with nothing watched: a mod runs `/setup watch` on its games channel, then `/backfill` there. Its free games, deals and achievements go to the first watched channel unless `/setup post` picks another one, and #GOTG is off until `/setup post` picks a channel (only the home server falls back to a channel named `GOTG_CHANNEL_NAME`). Its prices come from Steam's US store and its posts go by UTC until `/setup country` and `/setup timezone` change them.
 
 ## Setup
 

@@ -21,7 +21,7 @@ import gotg
 from catalog_html import render_catalog
 from db import PLAYERS_NEEDED, STATUSES, Database
 from guilds import (POSTS, Defaults, Settings, find_timezones, parse_channel, parse_country, parse_ids,
-                    parse_timezone)
+                    parse_timezone, welcome_channel)
 from web import CatalogSite
 
 load_dotenv()
@@ -91,6 +91,17 @@ DEFAULTS = Defaults(home_guild=GUILD_ID, watch=WATCH_CHANNELS, read=READ_CHANNEL
                     country=STEAM_COUNTRY, timezone=TIMEZONE, posts={
     "free_games": FREE_GAMES_CHANNEL_ID, "deals": DEALS_CHANNEL_ID, "achievements": ACHIEVEMENTS_CHANNEL_ID,
     "played_rule": PLAYED_RULE_CHANNEL_ID, "gotg": GOTG_CHANNEL_ID})
+
+# What a server the bot was just added to sees first: what it does and the setup steps (the same as the README's)
+WELCOME = """**Thanks for adding Game Catalog!** It turns the games you post in Discord into one catalog everyone can browse, vote on and play from.
+
+Set it up in a minute (you need Manage Messages):
+1. `/setup watch` in the channel where you post games
+2. `/backfill` in that channel, to add the games already posted there
+3. `/setup country` and `/setup timezone`, for prices in your currency and posts at your time
+4. Optional: `/setup post` picks where the daily #GOTG, the weekly deals and free games go
+
+Then post a Steam link and watch it land in `/catalog`. `/setup show` lists everything I use here."""
 
 log = logging.getLogger("gamebot")
 Choice = app_commands.Choice
@@ -1074,9 +1085,24 @@ class GameBot(commands.Bot):
                 self.heartbeat.start()
 
     async def on_guild_join(self, guild: discord.Guild):
-        """Added to another server: it gets its own empty catalog, and watches nothing until its admins run /setup."""
+        """Added to another server: it gets its own empty catalog, and watches nothing until its admins run /setup.
+        The first time, it says hello there with the setup steps."""
         log.info("Joined %s (%s)", guild.name, guild.id)
         self.sync_members(guild)
+        if self.db.get_guild_meta(guild.id, "welcomed"):  # added back after being removed: they know it already
+            return
+        self.db.set_guild_meta(guild.id, "welcomed", int(time.time()))
+        channel = welcome_channel(guild)
+        try:
+            if channel:
+                await channel.send(WELCOME)
+                log.info("Welcomed %s in #%s", guild.name, channel.name)
+            elif guild.owner:
+                await guild.owner.send(f"Hi! I was just added to **{guild.name}**, but I can't post in any of its "
+                                       f"channels, so here's how to set me up.\n\n{WELCOME}")
+                log.info("Welcomed %s by DM to its owner (no channel to post in)", guild.name)
+        except discord.HTTPException as exc:
+            log.warning("Couldn't welcome %s: %s", guild.name, exc)
 
     async def on_guild_remove(self, guild: discord.Guild):
         """Its catalog is kept (in case the bot is added back), but its people no longer count as members."""

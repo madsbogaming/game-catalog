@@ -1,7 +1,8 @@
 import unittest
+from types import SimpleNamespace
 
 from guilds import (OTHER_COUNTRY, OTHER_TIMEZONE, Defaults, Settings, find_timezones, parse_channel, parse_country,
-                    parse_ids, parse_timezone)
+                    parse_ids, parse_timezone, welcome_channel)
 from tests.helpers import GUILD_A, GUILD_B, new_db
 
 # Channels the fake Discord knows: 1-3 are in server A, 4 is in server B
@@ -175,6 +176,29 @@ class CountryAndTimeZone(unittest.TestCase):
         self.assertAlmostEqual(difference.total_seconds(), 9 * 3600, delta=5)
         self.assertIsNone(s.now(GUILD_A).tzinfo)  # compares with the naive times the bot builds from GOTG_TIME
 
+
+class Welcome(unittest.TestCase):
+    """Which channel a server the bot was just added to gets its hello in."""
+
+    @staticmethod
+    def channel(name, can_post):
+        return SimpleNamespace(name=name, permissions_for=lambda me: SimpleNamespace(send_messages=can_post))
+
+    def guild(self, system, *others):
+        return SimpleNamespace(me=object(), system_channel=system, text_channels=list(others))
+
+    def test_system_channel_first(self):
+        system = self.channel("welcome", True)
+        self.assertIs(welcome_channel(self.guild(system, self.channel("general", True))), system)
+
+    def test_first_channel_it_may_post_in(self):
+        general = self.channel("general", True)
+        guild = self.guild(self.channel("welcome", False), self.channel("rules", False), general)
+        self.assertIs(welcome_channel(guild), general)
+        self.assertIs(welcome_channel(self.guild(None, general)), general)
+
+    def test_nowhere(self):
+        self.assertIsNone(welcome_channel(self.guild(None, self.channel("rules", False))))
 
 if __name__ == "__main__":
     unittest.main()
