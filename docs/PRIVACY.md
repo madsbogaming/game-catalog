@@ -36,7 +36,7 @@ Nothing is sold, shared for advertising, or given to anyone else.
 
 ## Where it's stored and for how long
 
-Everything is stored in one database on the computer that runs the bot. A copy is backed up every night to the operator's private cloud storage (OneDrive), and only the newest 30 copies are kept, so a backup is gone after about a month.
+Everything is stored in one database on the server that runs the bot, rented from Hetzner in the EU. A copy is backed up every night on that server and copied to the operator's private cloud storage (OneDrive), and only the newest 30 copies are kept in each place, so a backup is gone after about a month. Hetzner also keeps copies of the whole server for 7 days.
 
 Data is kept as long as the bot runs for your server. If the bot leaves a server, that server's catalog is kept in case it's added back, but its members stop counting toward anything. If you leave a server, your Steam hours stop counting there.
 
