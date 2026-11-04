@@ -143,6 +143,7 @@ CREATE TABLE IF NOT EXISTS gotg_in (
     entry_id  INTEGER NOT NULL,
     user_id   INTEGER NOT NULL,
     at        INTEGER NOT NULL,
+    slot      TEXT,                           -- when they'd play: '18', '20', 'late', 'any', or NULL (didn't say)
     PRIMARY KEY (day, entry_id, user_id)
 );
 -- Small bits of bot state, e.g. when it was last online (to catch up on what it missed)
@@ -261,6 +262,8 @@ class Database:
                 self.conn.execute(f"ALTER TABLE entries ADD COLUMN {column} {kind}")
         # Playing marks used to stay until the person took them off. Which ones the bot set wasn't kept, so all the
         # old ones count as the bot's: they go once nobody is seen playing (the bot marks real players again)
+        if "slot" not in {r[1] for r in self.conn.execute("PRAGMA table_info(gotg_in)")}:
+            self.conn.execute("ALTER TABLE gotg_in ADD COLUMN slot TEXT")
         if "seen" not in {r[1] for r in self.conn.execute("PRAGMA table_info(playing)")}:
             self.conn.execute("ALTER TABLE playing ADD COLUMN seen INTEGER")
             self.conn.execute("UPDATE playing SET seen = since")
@@ -717,9 +720,16 @@ class Database:
         rows = self.conn.execute("SELECT user_id FROM gotg_in WHERE day = ? AND entry_id = ? ORDER BY at, rowid", (day, entry_id))
         return [r[0] for r in rows]
 
-    def set_gotg_in(self, day: str, entry_id: int, user_id: int, on: bool, when: int):
+    def gotg_slots(self, day: str, entry_id: int) -> dict[int, str | None]:
+        """When each of those in would play: user id -> slot ('18', '20', 'late', 'any' or None)."""
+        rows = self.conn.execute("SELECT user_id, slot FROM gotg_in WHERE day = ? AND entry_id = ?", (day, entry_id))
+        return dict(rows.fetchall())
+
+    def set_gotg_in(self, day: str, entry_id: int, user_id: int, on: bool, when: int, slot: str | None = None):
+        """In (keeping their place in line if they were in already, with the new slot) or out."""
         if on:
-            self._write_quietly("INSERT OR IGNORE INTO gotg_in VALUES (?, ?, ?, ?)", (day, entry_id, user_id, when))
+            self._write_quietly("INSERT INTO gotg_in VALUES (?, ?, ?, ?, ?) ON CONFLICT (day, entry_id, user_id) "
+                                "DO UPDATE SET slot = excluded.slot", (day, entry_id, user_id, when, slot))
         else:
             self._write_quietly("DELETE FROM gotg_in WHERE day = ? AND entry_id = ? AND user_id = ?",
                                 (day, entry_id, user_id))

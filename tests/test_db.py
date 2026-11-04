@@ -95,6 +95,17 @@ class GotgPerGuild(unittest.TestCase):
         self.assertEqual(db.gotg_posted_since(GUILD_A, "2026-11-01"), {a["id"]})
         self.assertEqual(db.gotg_posted_since(GUILD_B, "2026-11-04"), set())
 
+    def test_changing_when_keeps_your_place(self):
+        db = new_db()
+        game = add_steam(db, GUILD_A, 1)
+        db.set_gotg_in("2026-11-05", game["id"], 7, True, 100, "20")
+        db.set_gotg_in("2026-11-05", game["id"], 8, True, 200)
+        db.set_gotg_in("2026-11-05", game["id"], 7, True, 300, "late")  # sent the form again with another time
+        self.assertEqual(db.gotg_in("2026-11-05", game["id"]), [7, 8])
+        self.assertEqual(db.gotg_slots("2026-11-05", game["id"]), {7: "late", 8: None})
+        db.set_gotg_in("2026-11-05", game["id"], 7, False, 400)
+        self.assertEqual(db.gotg_in("2026-11-05", game["id"]), [8])
+
 
 class AchievementsTable(unittest.TestCase):
     def test_kept_per_server(self):
