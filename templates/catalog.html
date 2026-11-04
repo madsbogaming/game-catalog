@@ -1942,8 +1942,9 @@ function render() {
   }
   drawGrid(rows.length ? parts : [`<div class="empty">No games match.</div>`]);
   renderCatchUp();
-  // Games 2 or more of us played in the past week (the server keeps the week), latest first
-  const playing = DATA.filter((e) => e.recent.length >= 2).sort((a, b) => b.recent[0].at - a.recent[0].at);
+  // Games 2 or more of us played in the past week (the server keeps the week): the most players first, then the latest
+  const playing = DATA.filter((e) => e.recent.length >= 2)
+    .sort((a, b) => b.recent.length - a.recent.length || b.recent[0].at - a.recent[0].at);
   // Not played yet and wanted by two or more people
   const together = DATA.filter((e) => ["want", "demo"].includes(e.status) && e.interest >= 2).length;
   const top = DATA.filter((e) => ["want", "demo"].includes(e.status)).sort((a, b) => b.interest - a.interest)[0];
