@@ -482,7 +482,8 @@ class GameBot(commands.Bot):
         self.add_dynamic_items(ReelGameButton)  # "which game is this reel?" buttons on older messages
         self.add_dynamic_items(OpenCatalogButton)  # "Open the catalog" on the achievements launch post
         self.add_dynamic_items(CheckPlayedButton, PlayedAnswerButton)  # "Have you played these?"
-        self.add_dynamic_items(GotgInButton)  # "I'm in" on the #GOTG posts
+        self.add_dynamic_items(GotgFormButton)  # "I'm in…" on the #GOTG posts
+        self.add_dynamic_items(GotgInButton)  # the per-game "I'm in" on posts from before the form
         self.add_dynamic_items(SetupButton)  # "Set up" on the welcome message
         await self.site.start()
         # These run for every server; a server whose channel for them is turned off is skipped
@@ -1680,8 +1681,27 @@ def gotg_picks(guild_id: int, today: date) -> list[list]:
     return [[e["id"], group] for e, group in gotg.pick(bot.db, guild_id, today.isoformat(), rest_from)]
 
 
-def gotg_line(e: dict, group: str, ins: list[int], owners: dict[int, set[int]]) -> str:
-    """One game in the #GOTG post: what it is, who has it or wants it, and who's in tonight."""
+# When people would play, picked in the "I'm in…" form: slot -> what the form and the post call it
+GOTG_SLOTS = {"18": "Around 18", "20": "Around 20", "late": "Later tonight", "any": "Any time"}
+# Each game's box in the post: grey with nobody in, blurple while some are, green once it's on (as many as get pinged)
+GOTG_COLOURS = (0x4E5058, ACCENT, 0x23A55A)
+
+
+def gotg_colour(n: int) -> int:
+    return GOTG_COLOURS[0 if not n else 2 if n >= gotg.PLAYERS_TO_PING else 1]
+
+
+def gotg_when(slots) -> str | None:
+    """When a game is on, from the slots of those in (first in first): the time most picked, on a tie the one picked
+    first ("any time" only if nobody picked a time)."""
+    picked = [s for s in slots if s in ("18", "20", "late")]
+    if picked:
+        return GOTG_SLOTS[max(picked, key=lambda s: (picked.count(s), -picked.index(s)))].lower()
+    return "any time" if "any" in slots else None
+
+
+def gotg_line(e: dict, group: str, ins: list[int], slots: dict[int, str | None], owners: dict[int, set[int]]) -> str:
+    """One game in the #GOTG post: what it is, who has it or wants it, and who's in tonight (and when)."""
     kind = "Co-op" if e["coop"] else "Multiplayer"
     if group == "owned":
         stars = [s for _, s in bot.db.ratings(e["id"])]
@@ -1693,45 +1713,57 @@ def gotg_line(e: dict, group: str, ins: list[int], owners: dict[int, set[int]]) 
             f"{e['price_text']} (−{e['discount_pct']}%)" if e["discount_pct"] else e["price_text"])
         wants = [uid for uid, _ in bot.db.interested(e["id"])]
         bits = [price, kind, e["review_pct"] is not None and f"{e['review_pct']}% on Steam",
-                f"{len(wants)} want to play: " + " ".join(f"<@{uid}>" for uid in wants[:8])]
+                f"{len(wants)} want to play"]
     line = f"**{md_link(e['title'], e['url'])}**\n-# " + " · ".join(b for b in bits if b)
     if ins:
-        line += "\nIn tonight: " + " ".join(f"<@{uid}>" for uid in ins)
+        when = gotg_when([slots.get(uid) for uid in ins])
+        line += (f"\n{'**On tonight**, ' if len(ins) >= gotg.PLAYERS_TO_PING else ''}{len(ins)} in: "
+                 + " ".join(f"<@{uid}>" for uid in ins) + (f" · {when}" if when else ""))
     return line
 
 
+def gotg_games(guild_id: int, day: str) -> list[tuple[dict, str]]:
+    """The games of the server's #GOTG post of `day`: [(entry, "owned" | "buy")], as posted."""
+    post = bot.db.gotg_post(guild_id, day)
+    return [(e, group) for eid, group in (post["picks"] if post else []) if (e := bot.db.get(eid))]
+
+
 def gotg_view(guild_id: int, day: str) -> ui.LayoutView:
-    """The server's #GOTG post of `day`, with who's in so far (redrawn on every "I'm in"). Pings nobody."""
-    post, owners = bot.db.gotg_post(guild_id, day), bot.db.owners(guild_id)
+    """The server's #GOTG post of `day`, with who's in so far (redrawn on every answer). Pings nobody.
+    Each game is a box of its own, so its side bar can show how close it is to being on (gotg_colour)."""
+    owners, games = bot.db.owners(guild_id), gotg_games(guild_id, day)
     over = day != bot.settings.now(guild_id).date().isoformat()
     items: list[ui.Item] = [ui.TextDisplay(
-        "## Get on the game #GOTG\nWho's up for a game tonight? Press **I'm in** on the ones you'd play. Once "
-        f"{gotg.PLAYERS_TO_PING} of you are in on the same game, the bot pings the others who have it or want it.")]
+        "## Get on the game #GOTG\nWho's up for a game tonight? Press **I'm in…** and tick the ones you'd play. Once "
+        f"{gotg.PLAYERS_TO_PING} of you are in on the same game, it's on, and the bot pings the others who have it or "
+        "want it.")]
     for group, heading in (("owned", "### Already in your libraries"), ("buy", "### Worth buying")):
-        games = [e for eid, g in post["picks"] if g == group and (e := bot.db.get(eid))]
-        if games:
+        in_group = [e for e, g in games if g == group]
+        if in_group:
             items.append(ui.TextDisplay(heading))
-        for e in games:
+        for e in in_group:
             ins = bot.db.gotg_in(day, e["id"])
-            text = ui.TextDisplay(gotg_line(e, group, ins, owners))
-            items.append(ui.Section(text, accessory=ui.Thumbnail(e["image"])) if e["image"] else text)
-            items.append(ui.ActionRow(GotgInButton(day, e["id"], len(ins), over)))
-    items.append(ui.ActionRow(OpenCatalogButton()))
+            text = ui.TextDisplay(gotg_line(e, group, ins, bot.db.gotg_slots(day, e["id"]), owners))
+            body = ui.Section(text, accessory=ui.Thumbnail(e["image"])) if e["image"] else text
+            items.append(ui.Container(body, accent_colour=gotg_colour(len(ins))))
+    items.append(ui.ActionRow(GotgFormButton(day, over), OpenCatalogButton()))
     items.append(ui.TextDisplay(f"-# A new one every day at {GOTG_TIME:%H:%M} · “Own it” goes by the Steam libraries "
                                 f"linked to Discord ({len({u for us in owners.values() for u in us})} people)"))
     view = ui.LayoutView(timeout=None)
-    view.add_item(ui.Container(*items, accent_colour=ACCENT))
+    for item in items:
+        view.add_item(item)
     return view
 
 
-def gotg_press(guild_id: int, day: str, entry_id: int, user) -> tuple[str | None, list[int]]:
-    """`user` pressed "I'm in" (again = out) on the server's #GOTG. When that makes PLAYERS_TO_PING, the first time for
+def gotg_set(guild_id: int, day: str, entry_id: int, user, joining: bool,
+             slot: str | None = None) -> tuple[str | None, list[int]]:
+    """`user` is in for a game on the server's #GOTG (or out). When that makes PLAYERS_TO_PING, the first time for
     this game today: (the message pinging the others who own it or want it, who to ping). Otherwise (None, [])."""
-    ins = bot.db.gotg_in(day, entry_id)
-    joining = user.id not in ins
-    bot.db.set_gotg_in(day, entry_id, user.id, joining, int(time.time()))
+    was_in = user.id in bot.db.gotg_in(day, entry_id)
+    bot.db.set_gotg_in(day, entry_id, user.id, joining, int(time.time()), slot)
     entry = bot.db.get(entry_id)
-    log.info("%s is %s for %s (#GOTG)", user.display_name, "in" if joining else "out", entry["title"])
+    if joining != was_in:
+        log.info("%s is %s for %s (#GOTG)", user.display_name, "in" if joining else "out", entry["title"])
     ins = bot.db.gotg_in(day, entry_id)
     pinged = f"gotg_pinged:{day}:{entry_id}"
     if not joining or len(ins) < gotg.PLAYERS_TO_PING or bot.db.get_meta(pinged):
@@ -1742,18 +1774,108 @@ def gotg_press(guild_id: int, day: str, entry_id: int, user) -> tuple[str | None
     if group == "owned":
         others |= bot.db.owners(guild_id).get(gotg.appid(entry), set())
     others = sorted(others - set(ins))
-    text = (f"**{len(ins)} of you are in for {entry['title']} tonight:** " + " · ".join(f"<@{uid}>" for uid in ins)
-            + ("\nJoin them: " +" · ".join(f"<@{uid}>" for uid in others) if others else ""))
+    slots = bot.db.gotg_slots(day, entry_id)
+    when = gotg_when([slots.get(uid) for uid in ins])
+    text = (f"**{len(ins)} of you are in for {entry['title']} tonight{f', {when}' if when else ''}:** "
+            + " · ".join(f"<@{uid}>" for uid in ins)
+            + ("\nJoin them: " + " · ".join(f"<@{uid}>" for uid in others) if others else ""))
     return text, others
 
 
-class GotgInButton(ui.DynamicItem[ui.Button], template=r"gotg:(?P<day>\d{4}-\d{2}-\d{2}):(?P<entry>\d+)"):
-    """"I'm in" on a #GOTG post, for one game. Works the day of the post; dynamic, so it survives restarts."""
+def gotg_press(guild_id: int, day: str, entry_id: int, user) -> tuple[str | None, list[int]]:
+    """The per-game "I'm in" of posts from before the form: in, or out when pressed again."""
+    return gotg_set(guild_id, day, entry_id, user, user.id not in bot.db.gotg_in(day, entry_id))
 
-    def __init__(self, day: str, entry_id: int, count: int = 0, over: bool = False):
-        label = "Over" if over else f"I'm in · {count}" if count else "I'm in"
-        super().__init__(ui.Button(label=label, style=discord.ButtonStyle.success, disabled=over,
-                                   custom_id=f"gotg:{day}:{entry_id}"))
+
+def gotg_answer(guild_id: int, day: str, user, picked: set[int], slot: str | None) -> tuple[str, list[tuple[str, list[int]]]]:
+    """`user` sent the "I'm in…" form: in for the `picked` games (when: `slot`), out of the others.
+    -> (their private confirmation, [(ping message, who to ping)] for each game that just got enough people)."""
+    pings, titles = [], []
+    for e, _ in gotg_games(guild_id, day):
+        joining = e["id"] in picked
+        if joining or user.id in bot.db.gotg_in(day, e["id"]):
+            text, who = gotg_set(guild_id, day, e["id"], user, joining, slot)
+            if text:
+                pings.append((text, who))
+        if joining:
+            titles.append(f"**{e['title']}**")
+    if not titles:
+        return "You're not in for any game tonight. Press **I'm in…** again if you change your mind.", pings
+    names = titles[0] if len(titles) == 1 else ", ".join(titles[:-1]) + " and " + titles[-1]
+    when = f", {GOTG_SLOTS[slot].lower()}" if slot else ""
+    return f"You're in for {names} tonight{when}. Press **I'm in…** again to change it.", pings
+
+
+def gotg_today(interaction: discord.Interaction, day: str) -> bool:
+    gid = interaction.guild_id or 0
+    return day == bot.settings.now(gid).date().isoformat() and bot.db.gotg_post(gid, day) is not None
+
+
+class GotgForm(ui.Modal):
+    """What "I'm in…" opens: tonight's games to tick (ticked where you're in already) and when you'd play."""
+
+    def __init__(self, guild_id: int, day: str, user_id: int):
+        super().__init__(title="Tonight's #GOTG", timeout=3600)
+        self.day = day
+        games, mine = gotg_games(guild_id, day), set()
+        options = []
+        for e, _ in games:
+            ins = bot.db.gotg_in(day, e["id"])
+            if user_id in ins:
+                mine.add(e["id"])
+            options.append(discord.CheckboxGroupOption(
+                label=e["title"][:100], value=str(e["id"]), default=user_id in ins,
+                description=(f"{len(ins)} in" + (", it's on" if len(ins) >= gotg.PLAYERS_TO_PING else ""))
+                if ins else None))
+        slot = next((bot.db.gotg_slots(day, eid).get(user_id) for eid in mine), None)
+        self.games = ui.CheckboxGroup(options=options, required=False, min_values=0, max_values=len(options))
+        self.when = ui.RadioGroup(required=False, options=[
+            discord.RadioGroupOption(label=label, value=key, default=key == slot) for key, label in GOTG_SLOTS.items()])
+        self.add_item(ui.Label(text="Which games are you in for?", component=self.games,
+                               description="Untick one to leave it"))
+        self.add_item(ui.Label(text="When?", component=self.when, description="Optional"))
+
+    async def on_submit(self, interaction: discord.Interaction):
+        gid = interaction.guild_id or 0
+        if not gotg_today(interaction, self.day):
+            return await interaction.response.send_message(
+                f"This #GOTG is over. A new one comes at {GOTG_TIME:%H:%M}.", ephemeral=True)
+        picked = {int(v) for v in self.games.values}
+        slot = self.when.value if self.when.value in GOTG_SLOTS else None
+        text, pings = gotg_answer(gid, self.day, interaction.user, picked, slot)
+        await interaction.response.edit_message(view=gotg_view(gid, self.day))
+        await interaction.followup.send(text, ephemeral=True)
+        for ping, who in pings:
+            await interaction.message.reply(ping, allowed_mentions=discord.AllowedMentions(
+                users=[discord.Object(uid) for uid in who]), mention_author=False)
+            log.info("#GOTG: %d in, pinged %d", gotg.PLAYERS_TO_PING, len(who))
+
+
+class GotgFormButton(ui.DynamicItem[ui.Button], template=r"gotg-form:(?P<day>\d{4}-\d{2}-\d{2})"):
+    """"I'm in…" on a #GOTG post: opens the form. Works the day of the post; dynamic, so it survives restarts."""
+
+    def __init__(self, day: str, over: bool = False):
+        super().__init__(ui.Button(label="Over" if over else "I'm in…", style=discord.ButtonStyle.success,
+                                   disabled=over, custom_id=f"gotg-form:{day}"))
+        self.day = day
+
+    @classmethod
+    async def from_custom_id(cls, interaction: discord.Interaction, item: ui.Button, match):
+        return cls(match["day"])
+
+    async def callback(self, interaction: discord.Interaction):
+        if not gotg_today(interaction, self.day):
+            return await interaction.response.send_message(
+                f"This #GOTG is over. A new one comes at {GOTG_TIME:%H:%M}.", ephemeral=True)
+        await interaction.response.send_modal(GotgForm(interaction.guild_id or 0, self.day, interaction.user.id))
+
+
+class GotgInButton(ui.DynamicItem[ui.Button], template=r"gotg:(?P<day>\d{4}-\d{2}-\d{2}):(?P<entry>\d+)"):
+    """The per-game "I'm in" on #GOTG posts from before the form, so today's still works after the update.
+    Pressing it redraws the post the new way."""
+
+    def __init__(self, day: str, entry_id: int):
+        super().__init__(ui.Button(label="I'm in", style=discord.ButtonStyle.success, custom_id=f"gotg:{day}:{entry_id}"))
         self.day, self.entry_id = day, entry_id
 
     @classmethod
@@ -1762,8 +1884,7 @@ class GotgInButton(ui.DynamicItem[ui.Button], template=r"gotg:(?P<day>\d{4}-\d{2
 
     async def callback(self, interaction: discord.Interaction):
         gid = interaction.guild_id or 0
-        post = bot.db.gotg_post(gid, self.day)
-        if self.day != bot.settings.now(gid).date().isoformat() or not post or self.entry_id not in dict(post["picks"]):
+        if not gotg_today(interaction, self.day) or self.entry_id not in dict(bot.db.gotg_post(gid, self.day)["picks"]):
             await interaction.response.send_message(
                 f"This #GOTG is over. A new one comes at {GOTG_TIME:%H:%M}.", ephemeral=True)
             return

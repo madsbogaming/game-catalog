@@ -148,7 +148,7 @@ def draw(item, uid: int) -> str:
         href = (button.url if button.url else f"/sim/discord/{uid}?open=1" if cid == "played-check"
                 else f"/sim/as/{uid}" if cid == "open-catalog"
                 else f"/sim/discord/{uid}/answer/{cid.split(':')[1]}/{cid.split(':')[2]}" if cid.startswith("played:")
-                else f"/sim/gotg/{uid}/in/{cid.split(':')[2]}" if cid.startswith("gotg:") and not button.disabled else "#")
+                else f"/sim/gotg/{uid}/form" if cid.startswith("gotg-form:") and not button.disabled else "#")
         style = {discord.ButtonStyle.success: "green", discord.ButtonStyle.primary: "blue"}.get(button.style, "grey")
         return f'<a class="btn {style}" href="{html.escape(href)}">{html.escape(button.label or "")}</a>'
     return ""
@@ -183,7 +183,8 @@ class SimSite(CatalogSite):
         app.router.add_get("/sim/discord/{uid}", self.sim_discord)
         app.router.add_get("/sim/discord/{uid}/answer/{entry}/{answer}", self.sim_answer)
         app.router.add_get("/sim/gotg/{uid}", self.sim_gotg)
-        app.router.add_get("/sim/gotg/{uid}/in/{entry}", self.sim_gotg_in)
+        app.router.add_get("/sim/gotg/{uid}/form", self.sim_gotg_form)
+        app.router.add_get("/sim/gotg/{uid}/answer", self.sim_gotg_answer)
         return app
 
     async def viewer(self, request):
@@ -232,23 +233,45 @@ class SimSite(CatalogSite):
                  f'{"".join(draw(c, uid) for c in B.played_rule_reminder_view(left).children)}' if left else "")
         return web.Response(text=PAGE.format(body=body), content_type="text/html")
 
-    async def sim_gotg(self, request, ping: str | None = None):
+    async def sim_gotg(self, request, notes: list[tuple[str, str]] = ()):
         """Today's #GOTG post as the bot would send it at 16:30 (picked now on the copy if it hasn't been yet)."""
         uid, day = int(request.match_info["uid"]), date.today().isoformat()
         if not db.gotg_post(GUILD_ID, day):
             db.save_gotg_post(GUILD_ID, day, B.gotg_picks(GUILD_ID, date.today()))
         name = html.escape(Member(uid).display_name)
-        body = (f'<p><a href="/sim">← Pick someone else</a> · Press “I\'m in” as {name}, then as two others '
+        body = (f'<p><a href="/sim">← Pick someone else</a> · Press “I\'m in…” as {name}, then as two others '
                 f'to see the ping</p><div class="who">The 16:30 post in #{B.GOTG_CHANNEL_NAME} (pings nobody)</div>'
                 f'{"".join(draw(c, uid) for c in B.gotg_view(GUILD_ID, day).children)}')
-        if ping:
-            body += f'<div class="who">The bot\'s reply (pings the people after “Join them”)</div><div class="box" style="border-color:#5865f2"><p>{markdown(ping)}</p></div>'
+        for who, text in notes:
+            body += f'<div class="who">{who}</div><div class="box" style="border-color:#5865f2"><p>{markdown(text)}</p></div>'
         return web.Response(text=PAGE.format(body=body), content_type="text/html")
 
-    async def sim_gotg_in(self, request):
-        uid, entry = int(request.match_info["uid"]), int(request.match_info["entry"])
-        text, _ = B.gotg_press(GUILD_ID, date.today().isoformat(), entry, Member(uid))
-        return await self.sim_gotg(request, text)
+    async def sim_gotg_form(self, request):
+        """The "I'm in…" form, drawn as a page: the same questions and answers as B.GotgForm."""
+        uid, day = int(request.match_info["uid"]), date.today().isoformat()
+        form = B.GotgForm(GUILD_ID, day, uid)
+        games = "".join(
+            f'<label class="opt"><input type="checkbox" name="g" value="{o.value}"{" checked" if o.default else ""}> '
+            f'{html.escape(o.label)}{f" <small>{o.description}</small>" if o.description else ""}</label>'
+            for o in form.games.options)
+        when = "".join(
+            f'<label class="opt"><input type="radio" name="when" value="{o.value}"{" checked" if o.default else ""}> '
+            f'{o.label}</label>' for o in form.when.options)
+        body = (f'<p><a href="/sim/gotg/{uid}">← Back to the post</a></p><div class="box" style="border-color:#1e1f22">'
+                f'<h3>{form.title}</h3><form action="/sim/gotg/{uid}/answer"><h4>Which games are you in for?</h4>'
+                f'<small>Untick one to leave it</small>{games}<h4>When?</h4><small>Optional</small>{when}'
+                f'<p><button class="btn blue" style="border:0">Submit</button></p></form></div>'
+                '<style>.opt { display:block; padding:6px 0; } .opt small { margin-left:6px; }</style>')
+        return web.Response(text=PAGE.format(body=body), content_type="text/html")
+
+    async def sim_gotg_answer(self, request):
+        uid = int(request.match_info["uid"])
+        picked = {int(g) for g in request.query.getall("g", [])}
+        slot = request.query.get("when") if request.query.get("when") in B.GOTG_SLOTS else None
+        text, pings = B.gotg_answer(GUILD_ID, date.today().isoformat(), Member(uid), picked, slot)
+        notes = [("Only they see this", text)] + [("The bot's reply (pings the people after “Join them”)", p)
+                                                   for p, _ in pings]
+        return await self.sim_gotg(request, notes)
 
     async def sim_answer(self, request):
         uid, entry, answer = int(request.match_info["uid"]), int(request.match_info["entry"]), request.match_info["answer"]
