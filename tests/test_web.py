@@ -8,7 +8,7 @@ from aiohttp import web
 from aiohttp.test_utils import make_mocked_request
 
 from tests.helpers import GUILD_A, GUILD_B
-from web import CatalogSite
+from web import LEGAL_PAGES, CatalogSite, render_legal
 
 MEMBER, STRANGER = 1, 2
 
@@ -73,6 +73,24 @@ class OnlineStatusTest(unittest.TestCase):
         """Without the presence intent Discord reports everyone as offline, so no status is shown at all."""
         s = site(GUILD_A, [FakeGuild(GUILD_A, {MEMBER})], presences=False)
         self.assertEqual(s.status_of(s.bot.get_guild(GUILD_A), [MEMBER]), {})
+
+class LegalPagesTest(unittest.IsolatedAsyncioTestCase):
+    """The privacy policy and terms are public pages, since the repo is private."""
+
+    def test_rendered_with_links_between_them(self):
+        title, page = render_legal(LEGAL_PAGES["/terms"])
+        self.assertEqual(title, "Terms of service")
+        self.assertIn('href="/privacy"', page)
+        self.assertIn('href="/license"', page)
+        self.assertNotIn("PRIVACY.md", page)
+        _, privacy = render_legal(LEGAL_PAGES["/privacy"])
+        self.assertIn("<table>", privacy)
+
+    async def test_served_to_anyone(self):
+        s = site(GUILD_A, [FakeGuild(GUILD_A, set())])
+        response = await s.legal(make_mocked_request("GET", "/privacy"))
+        self.assertEqual(response.content_type, "text/html")
+        self.assertIn("<h1>Privacy policy</h1>", response.text)
 
 if __name__ == "__main__":
     unittest.main()

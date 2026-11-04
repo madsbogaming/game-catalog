@@ -25,6 +25,36 @@ mimetypes.add_type("text/javascript", ".mjs")  # some systems don't know .mjs, a
 logging.getLogger("aiohttp.access").setLevel(logging.WARNING)  # don't log every image request
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+# The privacy policy and terms as public pages (the repo is private, and Discord and top.gg want links to them).
+# Links between the documents point at these pages instead of the files.
+LEGAL_PAGES = {"/privacy": "docs/PRIVACY.md", "/terms": "docs/TERMS.md"}
+LEGAL_LINKS = {"PRIVACY.md": "/privacy", "TERMS.md": "/terms", "../LICENSE": "/license"}
+LEGAL_TEMPLATE = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{title} · Game Catalog</title>
+<style>
+:root {{ color-scheme: light dark; --bg:#fff; --ink:#1f2328; --muted:#59636e; --line:#d1d9e0; --link:#4752c4; }}
+@media (prefers-color-scheme: dark) {{ :root {{ --bg:#141518; --ink:#e6e7ea; --muted:#9a9ca3; --line:#2e3036; --link:#949cf7; }} }}
+body {{ margin:0; background:var(--bg); color:var(--ink); font:16px/1.6 system-ui, sans-serif; }}
+main {{ max-width:760px; margin:0 auto; padding:32px 16px 64px; }}
+a {{ color:var(--link); }} h1 {{ line-height:1.2; }} em {{ color:var(--muted); }}
+table {{ border-collapse:collapse; width:100%; display:block; overflow-x:auto; font-size:15px; }}
+th, td {{ border:1px solid var(--line); padding:6px 10px; text-align:left; vertical-align:top; }}
+code {{ font-size:.9em; }}
+</style></head><body><main>{body}</main></body></html>"""
+
+
+def render_legal(path: str) -> tuple[str, str]:
+    """docs/PRIVACY.md or docs/TERMS.md -> (title, the page's HTML)."""
+    import markdown  # only these two pages need it
+    with open(os.path.join(ROOT_DIR, path), encoding="utf-8") as f:
+        text = f.read()
+    for name, url in LEGAL_LINKS.items():
+        text = text.replace(f"]({name})", f"]({url})")
+    title = next((line.lstrip("# ").strip() for line in text.splitlines() if line.startswith("# ")), "Game Catalog")
+    body = markdown.markdown(text, extensions=["tables"])
+    return title, LEGAL_TEMPLATE.format(title=title, body=body)
 # Only images from these sites are proxied, so /img can't be used to fetch arbitrary URLs.
 IMAGE_HOSTS = ("steamstatic.com", "steampowered.com", "cdninstagram.com", "fbcdn.net", "discordapp.com",
                "discordapp.net", "blz-contentstack-images.akamaized.net", "battle.net", "blizzard.com")
@@ -89,6 +119,9 @@ class CatalogSite:
         app.router.add_get("/status.json", self.statuses)
         app.router.add_get("/img", self.image)
         app.router.add_post("/api/token", self.token)
+        for page in LEGAL_PAGES:
+            app.router.add_get(page, self.legal)
+        app.router.add_get("/license", self.license)
         app.router.add_get("/auth/login", self.login)
         app.router.add_get("/auth/callback", self.callback)
         app.router.add_get("/api/me", self.whoami)
@@ -535,6 +568,15 @@ class CatalogSite:
     async def version(self, request: web.Request) -> web.Response:
         """A number that changes whenever the catalog does, so open pages know when to reload their data."""
         return web.json_response({"v": self.bot.db.version}, headers={"Cache-Control": "no-store"})
+
+    async def legal(self, request: web.Request) -> web.Response:
+        """The privacy policy or the terms, as a page anyone can open (read fresh, so edits show after a deploy)."""
+        _, page = render_legal(LEGAL_PAGES[request.path])
+        return web.Response(text=page, content_type="text/html")
+
+    async def license(self, request: web.Request) -> web.Response:
+        """LICENSE as plain text, which the terms link to."""
+        return web.FileResponse(os.path.join(ROOT_DIR, "LICENSE"), headers={"Content-Type": "text/plain; charset=utf-8"})
 
     async def interest(self, request: web.Request) -> web.Response:
         body, entry, guild, member = await self.member_request(request)
