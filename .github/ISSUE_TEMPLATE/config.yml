@@ -1,1 +1,11 @@
 blank_issues_enabled: false
+contact_links:
+  - name: Ask for help
+    url: https://github.com/madsbogaming/game-catalog/discussions/categories/q-a
+    about: Setting the bot up, or something you can't figure out? Ask in Discussions.
+  - name: Security problem
+    url: https://github.com/madsbogaming/game-catalog/security/advisories/new
+    about: Found a security hole? Report it privately here, not in a public issue.
+  - name: Your data or privacy
+    url: https://bot-server.taild0abe3.ts.net/privacy
+    about: For a copy of your data or to have it deleted, email the address in the privacy policy.

@@ -28,7 +28,7 @@ How the bot runs around the clock on a small Hetzner server (Ubuntu 24.04), and 
 1. **Create the server** in the [Hetzner Cloud console](https://console.hetzner.cloud): Ubuntu 24.04, the smallest shared x86 plan, a location in Germany or Finland, the SSH key from `~/.ssh/id_ed25519_hetzner.pub`, and **Backups** turned on.
 2. **Put its IP address** in `~/.ssh/config` on the PC (`HostName`), then check that `ssh bot-server` gets in.
 3. **Prepare it:** `ssh bot-server 'bash -s' < deploy/setup.sh`. It prints a deploy key at the end.
-4. **Let it read the repo:** add that key as a read-only deploy key: repo **Settings → Deploy keys**, or `gh api repos/madsbogaming/mads-bo-wacky/keys -f title=bot-server -f key="<the key>" -F read_only=true`.
+4. **Let it read the repo:** add that key as a read-only deploy key: repo **Settings → Deploy keys**, or `gh api repos/madsbogaming/game-catalog/keys -f title=bot-server -f key="<the key>" -F read_only=true`.
 5. **Install the bot:** `ssh bot-server 'bash -s' < deploy/install.sh`.
 6. **Fixed address:** on the server, `tailscale up` (open the link it prints and sign in), then `tailscale funnel --bg 8765`. In the Tailscale admin page, turn off key expiry for the server.
 7. **Move the data**, with the bot on the PC stopped so the catalog doesn't change halfway:

@@ -31,4 +31,4 @@ As far as the law allows, the operator isn't liable for any loss or damage from 
 
 If these terms change, the new version replaces this page, with a new date at the top. Using the bot after a change means you accept the new terms.
 
-Questions? Email [mads.ringgaard@live.dk](mailto:mads.ringgaard@live.dk).
+Questions? Ask in the [project's Discussions on GitHub](https://github.com/madsbogaming/game-catalog/discussions/categories/q-a). If you can't use GitHub, email [mads.ringgaard@live.dk](mailto:mads.ringgaard@live.dk).

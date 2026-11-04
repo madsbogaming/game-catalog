@@ -101,7 +101,8 @@ Set it up in a minute (you need Manage Messages):
 3. `/setup country` and `/setup timezone`, for prices in your currency and posts at your time
 4. Optional: `/setup post` picks where the daily #GOTG, the weekly deals and free games go, and turns on Bot updates
 
-Then post a Steam link and watch it land in `/catalog`. `/setup show` lists everything I use here."""
+Then post a Steam link and watch it land in `/catalog`. `/setup show` lists everything I use here.
+-# Need help? Ask at <https://github.com/madsbogaming/game-catalog/discussions>"""
 
 log = logging.getLogger("gamebot")
 Choice = app_commands.Choice

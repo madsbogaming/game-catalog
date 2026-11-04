@@ -8,7 +8,7 @@ set -euo pipefail
 cd /opt/mads-bo-wacky
 
 if [ ! -d .git ]; then
-    sudo -u bot git clone git@github.com:madsbogaming/mads-bo-wacky.git .
+    sudo -u bot git clone git@github.com:madsbogaming/game-catalog.git .
 fi
 sudo -u bot python3 -m venv .venv
 sudo -u bot .venv/bin/pip install -q -r requirements.txt

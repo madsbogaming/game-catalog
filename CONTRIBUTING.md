@@ -15,8 +15,8 @@ The bot that lives in our Discord server runs on Mads' PC with the real token. I
 2. **Create a test bot** in the [Discord Developer Portal](https://discord.com/developers/applications) and add it to your test server. Follow [step 1 of the guide](docs/GUIDE.md#1-create-the-bot-on-discord).
 3. **Get the code:**
    ```bash
-   git clone https://github.com/madsbogaming/mads-bo-wacky.git
-   cd mads-bo-wacky
+   git clone https://github.com/madsbogaming/game-catalog.git
+   cd game-catalog
    py -m venv .venv
    .venv\Scripts\pip install -r requirements.txt
    copy .env.example .env
@@ -69,6 +69,6 @@ When the pull request is merged, the change is on `main`. The real bot picks it 
 
 The bot is source-available under [LICENSE](LICENSE). By opening a pull request you agree to section 4: you keep the rights to your code, and Mads may use it, change it and relicense it, for example if the bot goes open source later. Only send code you wrote yourself.
 
-## Found a bug or have an idea?
+## Found a bug, have an idea, or need help?
 
-[Open an issue](https://github.com/madsbogaming/mads-bo-wacky/issues/new/choose) and pick **Bug** or **Idea**. You don't need to write any code to help.
+[Open an issue](https://github.com/madsbogaming/game-catalog/issues/new/choose) and pick **Bug** or **Idea**. You don't need to write any code to help. Questions go in [Discussions](https://github.com/madsbogaming/game-catalog/discussions/categories/q-a), and security problems are reported privately (see [SECURITY.md](SECURITY.md)).

@@ -50,9 +50,14 @@ The **[full guide](docs/GUIDE.md)** covers every feature and command, the in-Dis
 
 What the bot keeps about people and why is in the **[privacy policy](docs/PRIVACY.md)**. The rules for using it are in the **[terms of service](docs/TERMS.md)**.
 
-## Help make it better
+## Help and feedback
 
-Found a bug or have an idea? [Open an issue](https://github.com/madsbogaming/mads-bo-wacky/issues/new/choose). Want to change the code? Start with **[CONTRIBUTING.md](CONTRIBUTING.md)**.
+- **Found a bug or have an idea?** [Open an issue](https://github.com/madsbogaming/game-catalog/issues/new/choose) and pick Bug or Idea.
+- **Need help setting it up, or stuck?** [Ask in Discussions](https://github.com/madsbogaming/game-catalog/discussions/categories/q-a).
+- **Found a security problem?** Report it privately, as [SECURITY.md](SECURITY.md) explains.
+- **Can't use GitHub?** Email [mads.ringgaard@live.dk](mailto:mads.ringgaard@live.dk) as a last resort. Requests about your own data always go by email, as the [privacy policy](docs/PRIVACY.md) says.
+
+Want to change the code? Start with **[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
 ## License
 

@@ -45,7 +45,7 @@ Data is kept as long as the bot runs for your server. If the bot leaves a server
 - **Don't sign in** to the catalog, and the bot never sees your Steam ID, library or hours.
 - **Turn off activity sharing** in Discord (User Settings → Activity Privacy), and the bot can't see what you play.
 - **Take back** a vote, rating, refund or "I played it" answer at any time in the catalog.
-- **Ask for a copy of your data, or for it to be deleted**, by emailing [mads.ringgaard@live.dk](mailto:mads.ringgaard@live.dk). Say which Discord account it's about: your Discord username is enough. Requests are handled within 30 days, and deleted data drops out of the backups within about a month after that.
+- **Ask for a copy of your data, or for it to be deleted**, by emailing [mads.ringgaard@live.dk](mailto:mads.ringgaard@live.dk). Say which Discord account it's about: your Discord username is enough. Requests are handled within 30 days, and deleted data drops out of the backups within about a month after that. Requests about your data go by email, not on GitHub, so they stay private. General questions about the bot can go in its [Discussions on GitHub](https://github.com/madsbogaming/game-catalog/discussions/categories/q-a).
 
 If you're in the EU or EEA, the GDPR gives you these rights (to see, correct and delete your data, and to object), and you can also complain to your national data protection authority. In Denmark that is [Datatilsynet](https://www.datatilsynet.dk/).
 
