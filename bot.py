@@ -271,7 +271,9 @@ class ReelGameButton(ui.DynamicItem[ui.Button], template=r"reel-game:(?P<reel>\d
                                                            ephemeral=True)
         if self.action == "name":
             return await interaction.response.send_modal(ReelGameModal(self.reel_id, interaction.message))
-        await interaction.response.edit_message(content="Okay, this reel stays a reel (not about one game).", view=None)
+        await interaction.response.edit_message(
+            content="Okay, it's not about one game, so it stays out of the catalog (only reels linked to a game show).",
+            view=None)
 
 
 class ReelGameView(ui.View):
@@ -1016,21 +1018,31 @@ class GameBot(commands.Bot):
         self.db.merge(reel["id"], target["id"])
         return self.db.get(target["id"])
 
-    async def identify_reel(self, message: discord.Message, reel: dict):
-        """A new reel: link it to the game its caption names, or ask the poster which game it is."""
+    async def link_from_caption(self, message: discord.Message, reel: dict) -> dict | None:
+        """Link a new reel to the game its caption names. -> that game, or None when the caption doesn't name one."""
         caption = "\n".join(filter(None, [reel.get("description"), reel.get("title"), sources.strip_links(message.content)]))
         appid = await sources.game_from_caption(self.web, caption, self.settings.country(reel["guild_id"]))
-        if appid:
-            try:
-                game = await self.link_reel(reel, appid)
-                log.info("Reel %s is %s (from its caption), linked", reel["key"], game["title"])
-                await message.reply(f"This reel is **{game['title']}** (from its caption), so it's now a clip of that "
-                                    "game in the catalog. Wrong game? Use `/link`.", mention_author=False)
-                return
-            except TurnedAway as exc:
-                log.info("Reel %s names app %s, which was turned away: %s", reel["key"], appid, exc)
+        if not appid:
+            return None
+        try:
+            game = await self.link_reel(reel, appid)
+        except TurnedAway as exc:
+            log.info("Reel %s names app %s, which was turned away: %s", reel["key"], appid, exc)
+            return None
+        log.info("Reel %s is %s (from its caption), linked", reel["key"], game["title"])
+        return game
+
+    async def identify_reel(self, message: discord.Message, reel: dict):
+        """A new reel: link it to the game its caption names, or ask the poster which game it is. Until it's
+        linked, a reel isn't shown in the catalog."""
+        game = await self.link_from_caption(message, reel)
+        if game:
+            await message.reply(f"This reel is **{game['title']}** (from its caption), so it's now a clip of that "
+                                "game in the catalog. Wrong game? Use `/link`.", mention_author=False)
+            return
         await message.reply(
-            f"{message.author.mention} which game is this reel about? I couldn't tell from its caption.",
+            f"{message.author.mention} which game is this reel about? I couldn't tell from its caption. "
+            "It shows in the catalog once it's linked to one.",
             view=ReelGameView(reel["id"]), allowed_mentions=discord.AllowedMentions(users=[message.author]))
 
     @staticmethod
@@ -1110,9 +1122,12 @@ class GameBot(commands.Bot):
             lines += rejected
             if lines:
                 await message.reply("\n".join(lines), mention_author=False)
-            for entry, created in results:
-                if created and entry["kind"] == "instagram":
+        for entry, created in results:
+            if created and entry["kind"] == "instagram":
+                if announce:
                     await self.identify_reel(message, entry)
+                else:  # /backfill: link the ones whose caption names a game, without replying to old posts
+                    await self.link_from_caption(message, entry)
         return new, len(dupes)
 
     # -- events --

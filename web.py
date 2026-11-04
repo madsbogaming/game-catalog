@@ -169,7 +169,9 @@ class CatalogSite:
 
     async def catalog(self, guild) -> tuple[list[dict], dict[str, dict]]:
         """All games of `guild`, plus profile info for everyone who added, wants or is mentioned in one."""
-        rows = self.bot.db.query(guild.id) if guild else []
+        # Games only: a reel shows once it's linked to a game, as a clip on that game's card (unlinked reels are
+        # often not about a game at all, e.g. a /backfill of a channel where people post all sorts of reels)
+        rows = self.bot.db.query(guild.id, source="games") if guild else []
         played, before_rule = self.bot.db.played_map(), self.bot.db.played_before_rule()
         recent = self.bot.db.recent_players(int(time.time()) - RECENT_DAYS * 86400)  # the "recent activity" feed
         ids = set()
