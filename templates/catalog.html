@@ -507,7 +507,10 @@ html::-webkit-scrollbar-thumb:hover, .multi-list::-webkit-scrollbar-thumb:hover,
 #mini-playing:empty { display:none; }
 body.mini header, body.mini #now, body.mini .bar, body.mini main { display:none; }
 body.mini #mini { display:flex; }
+/* The poster covers only the viewport, not the gutter kept for the scrollbar, which showed as a black bar */
+html:has(body.mini) { scrollbar-gutter:auto; overflow:hidden; }
 @media (max-height: 300px) {
+  html { scrollbar-gutter:auto; overflow:hidden; }
   header, #now, .bar, main { display:none; }
   #mini { display:flex; }
 }
