@@ -2,7 +2,7 @@
 
 *Last updated: 4 November 2026*
 
-This policy covers the Game Catalog bot ("the bot") and its catalog page, run by Mads ([madsbogaming](https://github.com/madsbogaming) on GitHub). It says what the bot keeps about you, why, who else sees it, and how to have it removed.
+This policy covers the Game Catalog bot ("the bot") and its catalog page, run by Mads ([madsbogaming](https://github.com/madsbogaming) on GitHub, [mads.ringgaard@live.dk](mailto:mads.ringgaard@live.dk)). It says what the bot keeps about you, why, who else sees it, and how to have it removed.
 
 **In short:** the bot keeps what it needs to build your server's game catalog: the games people post, who wants or played them, and, if you sign in, your Steam hours. It doesn't sell anything, show ads or read channels it hasn't been given.
 
@@ -45,7 +45,7 @@ Data is kept as long as the bot runs for your server. If the bot leaves a server
 - **Don't sign in** to the catalog, and the bot never sees your Steam ID, library or hours.
 - **Turn off activity sharing** in Discord (User Settings → Activity Privacy), and the bot can't see what you play.
 - **Take back** a vote, rating, refund or "I played it" answer at any time in the catalog.
-- **Ask for a copy of your data, or for it to be deleted**, by [opening an issue on GitHub](https://github.com/madsbogaming/mads-bo-wacky/issues/new/choose). Say which Discord account it's about. Issues are public, so don't post anything private there: your Discord username is enough. Requests are handled within 30 days, and deleted data drops out of the backups within about a month after that.
+- **Ask for a copy of your data, or for it to be deleted**, by emailing [mads.ringgaard@live.dk](mailto:mads.ringgaard@live.dk). Say which Discord account it's about: your Discord username is enough. Requests are handled within 30 days, and deleted data drops out of the backups within about a month after that.
 
 If you're in the EU or EEA, the GDPR gives you these rights (to see, correct and delete your data, and to object), and you can also complain to your national data protection authority. In Denmark that is [Datatilsynet](https://www.datatilsynet.dk/).
 

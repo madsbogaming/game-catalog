@@ -2,7 +2,7 @@
 
 *Last updated: 4 November 2026*
 
-These terms cover using the Game Catalog bot ("the bot") and its catalog page, run by Mads ([madsbogaming](https://github.com/madsbogaming) on GitHub). By adding the bot to a server or using it, you agree to them. What the bot keeps about you is in the [privacy policy](PRIVACY.md).
+These terms cover using the Game Catalog bot ("the bot") and its catalog page, run by Mads ([madsbogaming](https://github.com/madsbogaming) on GitHub, [mads.ringgaard@live.dk](mailto:mads.ringgaard@live.dk)). By adding the bot to a server or using it, you agree to them. What the bot keeps about you is in the [privacy policy](PRIVACY.md).
 
 These terms are about **using** the bot. Copying, hosting or changing its code is covered by the [license](../LICENSE).
 
@@ -31,4 +31,4 @@ As far as the law allows, the operator isn't liable for any loss or damage from 
 
 If these terms change, the new version replaces this page, with a new date at the top. Using the bot after a change means you accept the new terms.
 
-Questions? [Open an issue on GitHub](https://github.com/madsbogaming/mads-bo-wacky/issues/new/choose).
+Questions? Email [mads.ringgaard@live.dk](mailto:mads.ringgaard@live.dk).
