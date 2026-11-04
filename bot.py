@@ -51,6 +51,9 @@ STEAM_API_KEY = os.getenv("STEAM_API_KEY", "").strip()
 # pings it every UPTIME_PING_MINUTES while it's connected to Discord, and the monitor emails us when the pings stop.
 HEALTHCHECK_URL = os.getenv("HEALTHCHECK_URL", "").strip()
 UPTIME_PING_MINUTES = 5
+# Whether the bot asks Discord for presences (who's playing what, who's online). Discord reviews this privileged intent
+# once a bot grows; set PRESENCE_INTENT=false to run without it.
+PRESENCE_INTENT = os.getenv("PRESENCE_INTENT", "true").lower() in ("1", "true", "yes")
 TRACK_MINUTES = 5  # how often the bot counts who's playing what in Discord (each look adds this much time)
 PLAYING_GRACE_MINUTES = 10  # a "Playing" mark the bot set goes this long after Discord and Steam stop showing the game
 REFUND_MAX_MINUTES = 120  # Steam refunds only games played less than 2 hours
@@ -429,7 +432,10 @@ class GameBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
         intents.message_content = True
-        intents.presences = intents.members = True  # to see "Playing <game>" (both switched on in the portal)
+        intents.members = True
+        # To see "Playing <game>" and online status (switched on in the portal). Without it, playing is only seen on
+        # Steam, for people who linked it, and the catalog shows no online status.
+        intents.presences = PRESENCE_INTENT
         super().__init__(command_prefix=commands.when_mentioned, intents=intents,
                          allowed_mentions=discord.AllowedMentions.none())
         self.db = Database(DB_PATH)
@@ -447,6 +453,9 @@ class GameBot(commands.Bot):
             timeout=aiohttp.ClientTimeout(total=15),
             headers={"User-Agent": "Mozilla/5.0 (game-catalog discord bot)"},
         )
+        if not PRESENCE_INTENT:
+            log.info("Running without presences: playing is only seen on Steam%s, and the catalog shows no online "
+                     "status", "" if STEAM_API_KEY else " (but STEAM_API_KEY isn't set, so not at all)")
         self.add_dynamic_items(ReelGameButton)  # "which game is this reel?" buttons on older messages
         self.add_dynamic_items(OpenCatalogButton)  # "Open the catalog" on the achievements launch post
         self.add_dynamic_items(CheckPlayedButton, PlayedAnswerButton)  # "Have you played these?"

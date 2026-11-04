@@ -162,10 +162,12 @@ class CatalogSite:
         return rows, {uid: {**u, "achievements": achievements.earned(self.bot.db, guild.id, int(uid)) if guild else [],
                             "status": status.get(uid)} for uid, u in users.items()}
 
-    @staticmethod
-    def status_of(guild, ids) -> dict[str, str]:
+    def status_of(self, guild, ids) -> dict[str, str]:
         """online, idle, dnd or offline, as Discord shows it, for those of `ids` still in the server.
-        Someone invisible shows as offline, as they do in Discord."""
+        Someone invisible shows as offline, as they do in Discord. Nobody has one when the bot runs without
+        presences (everyone would look offline)."""
+        if not self.bot.intents.presences:
+            return {}
         members = ((uid, guild.get_member(uid)) for uid in ids) if guild else ()
         return {str(uid): "offline" if str(m.status) == "invisible" else str(m.status) for uid, m in members if m}
 

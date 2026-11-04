@@ -18,15 +18,15 @@ class FakeGuild:
         self.id, self._members = guild_id, members
 
     def get_member(self, uid):
-        return SimpleNamespace(id=uid) if uid in self._members else None
+        return SimpleNamespace(id=uid, status=discord.Status.online) if uid in self._members else None
 
     async def fetch_member(self, uid):
         raise discord.NotFound(SimpleNamespace(status=404, reason="Not Found"), "Unknown Member")
 
 
-def site(home: int, guilds: list[FakeGuild]) -> CatalogSite:
+def site(home: int, guilds: list[FakeGuild], presences: bool = True) -> CatalogSite:
     by_id = {g.id: g for g in guilds}
-    bot = SimpleNamespace(guilds=guilds, get_guild=by_id.get)
+    bot = SimpleNamespace(guilds=guilds, get_guild=by_id.get, intents=SimpleNamespace(presences=presences))
     s = CatalogSite(bot, 0, default_guild_id=home)
     tokens = {"member": MEMBER, "stranger": STRANGER}
 
@@ -63,6 +63,16 @@ class VisibleGuildTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(site(0, [self.a]).is_public(self.a))
         self.assertFalse(site(0, [self.a, self.b]).is_public(self.a))
 
+
+class OnlineStatusTest(unittest.TestCase):
+    def test_shown_with_presences(self):
+        s = site(GUILD_A, [FakeGuild(GUILD_A, {MEMBER})])
+        self.assertEqual(s.status_of(s.bot.get_guild(GUILD_A), [MEMBER, STRANGER]), {str(MEMBER): "online"})
+
+    def test_hidden_without_presences(self):
+        """Without the presence intent Discord reports everyone as offline, so no status is shown at all."""
+        s = site(GUILD_A, [FakeGuild(GUILD_A, {MEMBER})], presences=False)
+        self.assertEqual(s.status_of(s.bot.get_guild(GUILD_A), [MEMBER]), {})
 
 if __name__ == "__main__":
     unittest.main()
