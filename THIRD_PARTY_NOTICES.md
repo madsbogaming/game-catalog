@@ -8,10 +8,6 @@ These parts of the repository are made by others. Each comes with its own licens
 | Tabler Icons by Paweł Kuna | the icons in `templates/catalog.html`, and the badges in `static/badges/` drawn from them | MIT, below |
 | Discord Embedded App SDK 2.5.0 by Discord Inc. | `static/discord-sdk.mjs` | MIT, below |
 
-## Game art in `static/art`
-
-The pictures `banner.png`, `cover.jpg`, `background.jpg` and `logo.png` in `static/art` are collages of game art from the Steam store. That art belongs to the games' publishers and is **not** covered by LICENSE or any license here. It is only used inside our own Discord server and will be replaced before the repository goes public.
-
 ## Tabler Icons
 
 ```
@@ -52,4 +48,4 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-`static/art/avatar.png`, the bot's avatar and app icon (a white controller on blue), is our own and is covered by LICENSE.
+The pictures in `static/art` (avatar, banner, cover and background) are our own and are covered by LICENSE. The banner uses the Lilita One font above.

@@ -1,4 +1,4 @@
-<p align="center"><img src="static/art/banner.png" alt="What are we playing next?" width="720"></p>
+<p align="center"><img src="static/art/banner.png" alt="Game Catalog: what are we playing next?" width="720"></p>
 
 <h1 align="center">Game Catalog bot</h1>
 
