@@ -444,6 +444,7 @@ def not_on_steam(appid: int) -> TurnedAway:
 class GameBot(commands.Bot):
     def __init__(self):
         self.command_ids: dict[str, int] = {}  # command name -> id, filled when the commands are synced
+        self._membership: dict[tuple[int, int], tuple[float, bool]] = {}  # (server, user) -> (checked at, in it)
         intents = discord.Intents.default()
         intents.message_content = True
         intents.members = True
@@ -485,6 +486,7 @@ class GameBot(commands.Bot):
         self.check_achievements.start()
         self.played_rule.start()
         self.post_gotg.start()
+        self.tidy_members.start()
         if PUBLIC_URL:  # fixed address: nothing to start, and the Activity URL mapping never changes
             self.site.public_url = PUBLIC_URL
             log.info("Public catalog URL: %s", PUBLIC_URL)
@@ -557,8 +559,48 @@ class GameBot(commands.Bot):
         channel = self.get_channel(channel_id) if channel_id else None
         return channel if channel and channel.guild.id == guild.id else None
 
-    def sync_members(self, guild: discord.Guild):
-        self.db.set_members(guild.id, [m.id for m in guild.members if not m.bot])
+    async def still_member(self, guild: discord.Guild, user_id: int) -> bool | None:
+        """Is this person in the server? Asks Discord about just them, so it works without the Server Members intent.
+        None when Discord couldn't say (then nothing is deleted). Answers are remembered for 10 minutes."""
+        if guild.get_member(user_id):
+            return True
+        known = self._membership.get((guild.id, user_id))
+        if known and time.monotonic() - known[0] < 600:
+            return known[1]
+        try:
+            await guild.fetch_member(user_id)
+            answer = True
+        except discord.NotFound:  # left, or deleted their account
+            answer = False
+        except discord.HTTPException as exc:
+            log.warning("Couldn't check if %s is in %s: %s", user_id, guild.name, exc)
+            return None
+        self._membership[guild.id, user_id] = (time.monotonic(), answer)
+        return answer
+
+    async def check_members(self, guild: discord.Guild):
+        """Everyone the server's data is about, checked one by one: who's still there counts as a member (for their
+        Steam hours), and what someone who left did there is deleted (issue #7)."""
+        for uid in sorted(self.db.people_in(guild.id) - {self.user.id}):
+            member = await self.still_member(guild, uid)
+            if member:
+                self.db.add_member(guild.id, uid)
+            elif member is False:
+                changed = self.db.forget_member(guild.id, uid)
+                log.info("%s is no longer in %s: deleted %d things of theirs there", uid, guild.name, changed)
+
+    @tasks.loop(hours=24)
+    async def tidy_members(self):
+        """At start and then daily, as without the Server Members intent Discord doesn't say when someone leaves."""
+        for guild in list(self.guilds):
+            try:
+                await self.check_members(guild)
+            except Exception:
+                log.exception("Couldn't check who is still in %s", guild.name)
+
+    @tidy_members.before_loop
+    async def _members_wait(self):
+        await self.wait_until_ready()
 
     # -- archiving --
 
@@ -1076,8 +1118,7 @@ class GameBot(commands.Bot):
     async def on_ready(self):
         log.info("Logged in as %s, in %d server(s)", self.user, len(self.guilds))
         self._connected = True
-        for guild in self.guilds:
-            self.sync_members(guild)  # who joined or left while the bot was offline
+        for guild in self.guilds:  # who joined or left while the bot was offline: tidy_members
             watched = self.settings.watch_channels(guild.id)
             log.info("%s: watching %s", guild.name, ", ".join(map(str, watched)) if watched else
                      "no channels yet (an admin can pick them with /setup watch)")
@@ -1100,7 +1141,7 @@ class GameBot(commands.Bot):
         """Added to another server: it gets its own empty catalog, and watches nothing until its admins run /setup.
         The first time, it says hello there with the setup steps."""
         log.info("Joined %s (%s)", guild.name, guild.id)
-        self.sync_members(guild)
+        asyncio.create_task(self.check_members(guild))  # whose Steam hours count here
         if self.db.get_guild_meta(guild.id, "welcomed"):  # added back after being removed: they know it already
             return
         self.db.set_guild_meta(guild.id, "welcomed", int(time.time()))
@@ -1126,7 +1167,10 @@ class GameBot(commands.Bot):
             self.db.add_member(member.guild.id, member.id)
 
     async def on_raw_member_remove(self, payload: discord.RawMemberRemoveEvent):
-        self.db.remove_member(payload.guild_id, payload.user.id)
+        """Only sent with the Server Members intent; without it, tidy_members finds who left within a day."""
+        if not payload.user.bot:
+            changed = self.db.forget_member(payload.guild_id, payload.user.id)
+            log.info("%s left server %s: deleted %d things of theirs there", payload.user, payload.guild_id, changed)
 
     async def on_disconnect(self):
         self._connected = False
@@ -1180,8 +1224,8 @@ class GameBot(commands.Bot):
                     archived += new + known
                 for reaction in msg.reactions:
                     if str(reaction.emoji) == INTEREST_EMOJI and reaction.count > reaction.me:
-                        async for user in reaction.users():
-                            if not user.bot:
+                        async for user in reaction.users():  # a reaction stays after its owner left the server
+                            if not user.bot and await self.still_member(channel.guild, user.id) is not False:
                                 for entry_id in self.db.entries_for_message(msg.id):
                                     self.db.add_interest(entry_id, user.id, user.display_name)
                                     reactions += 1
@@ -1959,8 +2003,8 @@ async def backfill(interaction: discord.Interaction, channel: discord.TextChanne
         if n or d:
             for reaction in msg.reactions:
                 if str(reaction.emoji) == INTEREST_EMOJI:
-                    async for user in reaction.users():
-                        if not user.bot:
+                    async for user in reaction.users():  # a reaction stays after its owner left the server
+                        if not user.bot and await bot.still_member(channel.guild, user.id) is not False:
                             for entry_id in bot.db.entries_for_message(msg.id):
                                 bot.db.add_interest(entry_id, user.id, user.display_name)
     summary = (f"Scanned {len(messages)} messages in {channel.mention}: {new} new games/reels archived, "
