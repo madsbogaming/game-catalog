@@ -586,8 +586,10 @@ class GameBot(commands.Bot):
             if member:
                 self.db.add_member(guild.id, uid)
             elif member is False:
+                # Steam-linked people are checked in every server, also ones they were never in: those have nothing
                 changed = self.db.forget_member(guild.id, uid)
-                log.info("%s is no longer in %s: deleted %d things of theirs there", uid, guild.name, changed)
+                if changed:
+                    log.info("%s is no longer in %s: deleted %d things of theirs there", uid, guild.name, changed)
 
     @tasks.loop(hours=24)
     async def tidy_members(self):
