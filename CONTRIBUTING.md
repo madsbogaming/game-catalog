@@ -67,9 +67,7 @@ When the pull request is merged, the change is on `main`. The real bot picks it 
 
 ## Your contributions and the license
 
-The bot is source-available under [LICENSE](LICENSE). By opening a pull request you agree to section 5: you keep the rights to your code, and Mads may use it, change it and relicense it, for example if the bot goes open source later. Only send code you wrote yourself.
-
-As an invited collaborator you may also run the bot for a server of your own (section 3). Use your own bot and token for that too, never the real one.
+The bot is source-available under [LICENSE](LICENSE). By opening a pull request you agree to section 4: you keep the rights to your code, and Mads may use it, change it and relicense it, for example if the bot goes open source later. Only send code you wrote yourself.
 
 ## Found a bug or have an idea?
 

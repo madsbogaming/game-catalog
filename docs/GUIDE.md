@@ -48,6 +48,8 @@ The channels in `.env` are the defaults for the server they're in. A server the 
 
 ## Setup
 
+This is for running a copy of the bot yourself, which [LICENSE](../LICENSE) allows only on a private test server for developing contributions (see [CONTRIBUTING.md](../CONTRIBUTING.md)). To use the bot, [add the official one](../README.md#add-it-to-your-server).
+
 ### 1. Create the bot on Discord
 1. Go to <https://discord.com/developers/applications> → **New Application**.
 2. Open **Bot** → **Reset Token**, then copy the token.

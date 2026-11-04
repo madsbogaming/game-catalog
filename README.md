@@ -17,25 +17,20 @@ Your friends post games in Discord. The bot turns them into one catalog everyone
 - **Earn achievements** for adding games, playing together and more (some are secret).
 - **Only games you can play together.** Singleplayer and couch-only games are turned away, so the list stays useful.
 
-## Up and running in 10 minutes
+## Add it to your server
 
-For now the bot is invite-only: setting it up yourself is for invited collaborators (see [License](#license)). You need Python 3.12 or newer.
+It's free, and it runs around the clock. You need **Manage Server** on the server to add it.
 
-1. **Create a bot** in the [Discord Developer Portal](https://discord.com/developers/applications) and add it to your server ([step-by-step](docs/GUIDE.md#1-create-the-bot-on-discord)).
-2. **Install it:**
-   ```bash
-   git clone https://github.com/madsbogaming/mads-bo-wacky.git
-   cd mads-bo-wacky
-   py -m venv .venv
-   .venv\Scripts\pip install -r requirements.txt
-   copy .env.example .env
-   ```
-3. **Fill in `.env`:** your bot token, server ID and games channel. Everything else is optional.
-4. **Start it** with `.venv\Scripts\python bot.py`, then run `/backfill` in your games channel to import everything already posted.
+<p align="center"><a href="https://discord.com/oauth2/authorize?client_id=1565754087776067584&permissions=274878024768&integration_type=0&scope=bot+applications.commands"><b>Add Game Catalog to Discord</b></a></p>
 
-That's it. Post a Steam link and watch it land in the catalog.
+Then set it up in a minute:
 
-**More servers?** Invite the same bot to them. Each one gets its own catalog, votes and achievements, and starts with nothing watched: an admin there runs `/setup watch` in its games channel, then `/backfill`, and `/setup country` and `/setup timezone` for prices in their currency and posts at their time. `/setup show` lists what the bot uses on a server.
+1. **Pick your games channel:** `/setup watch` in the channel where people post games.
+2. **Import what's already there:** `/backfill` in that channel.
+3. **Your prices and time:** `/setup country` (for example `dk` or `us`) and `/setup timezone` (start typing your city).
+4. **Optional:** `/setup post` picks where the daily #GOTG, the weekly deals and free games go.
+
+That's it. Post a Steam link and watch it land in the catalog. `/setup show` lists everything the bot uses on your server.
 
 ## Everyone can use
 
@@ -61,4 +56,4 @@ Found a bug or have an idea? [Open an issue](https://github.com/madsbogaming/mad
 
 ## License
 
-The bot is **source-available, not open source.** You may read the code and run a copy on a private test server to develop contributions. Invited collaborators may also run it for their own server. You may not host your own copy for others or reuse the code elsewhere without written permission. See [LICENSE](LICENSE), and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the parts made by others.
+The bot is **source-available, not open source.** You may read the code and run a copy on a private test server to develop contributions. You may not host your own copy or reuse the code elsewhere without written permission: [add the official bot](#add-it-to-your-server) instead. See [LICENSE](LICENSE), and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the parts made by others.
