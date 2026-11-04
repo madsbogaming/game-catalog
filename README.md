@@ -35,6 +35,8 @@ For now the bot is invite-only: setting it up yourself is for invited collaborat
 
 That's it. Post a Steam link and watch it land in the catalog.
 
+**More servers?** Invite the same bot to them. Each one gets its own catalog, votes and achievements, and starts with nothing watched: an admin there runs `/setup watch` in its games channel, then `/backfill`. `/setup show` lists what the bot uses on a server.
+
 ## Everyone can use
 
 | Command | What it does |
@@ -43,7 +45,7 @@ That's it. Post a Steam link and watch it land in the catalog.
 | `/random` | Picks a game for tonight. Don't like it? Reroll. |
 | `/link` | Tells the bot which game an Instagram reel is about. |
 
-Admins get more commands to add, tag, refresh and remove games, and `/setup` to pick the channels the bot uses. One bot can serve several servers, each with its own catalog.
+Admins get more commands to add, tag, refresh and remove games, and `/setup` to pick the channels the bot uses on their server.
 
 ## Want more?
 
