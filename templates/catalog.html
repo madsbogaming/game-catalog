@@ -600,7 +600,9 @@ html:has(body.mini) { scrollbar-gutter:auto; overflow:hidden; }
 .rating-pill .played-badge { background:none; padding:0 0 0 4px; margin-left:2px; border-left:1px solid rgba(255,255,255,.25);
   border-radius:0; color:#3ba55d; font-weight:700; }
 .rating-pill .played-badge .i { width:13px; height:13px; color:#3ba55d; fill:none; }
-.rate-line { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); }
+/* Wraps on narrow cards (a short window's "Fit window" makes them ~200px), so the played badge goes under the stars
+   instead of sticking out of the card */
+.rate-line { display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; font-size:12px; color:var(--muted); }
 .rate { display:inline-flex; gap:1px; }
 .rate-star { padding:2px; border:0; background:none; cursor:pointer; color:#6d7179; line-height:0; }
 .rate-star .i { width:19px; height:19px; color:inherit; }
@@ -610,6 +612,11 @@ html:has(body.mini) { scrollbar-gutter:auto; overflow:hidden; }
 .rate:hover .rate-star .i { fill:#f0b232; }
 .rate-star:hover ~ .rate-star { color:#6d7179; }
 .rate-star:hover ~ .rate-star .i { fill:none; }
+@container (max-width:250px) {  /* after the rules above, so these win */
+  .rate-line { gap:3px 6px; }
+  .rate-star { padding:1px; }
+  .rate-star .i { width:16px; height:16px; }
+}
 /* One-time tip about Discord's activity sharing */
 .tip { display:flex; align-items:center; gap:12px; margin-top:12px; padding:10px 14px; border:1px solid var(--accent);
   border-radius:12px; background:var(--chip); font-size:13px; color:var(--ink); }
