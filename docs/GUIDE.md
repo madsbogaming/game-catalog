@@ -1,4 +1,4 @@
-# Game Catalog bot: the full guide
+# Get on the Game: the full guide
 
 A Discord bot that watches your server for **Steam store links** and **Instagram reels**, archives them, and turns them into a catalog of games you and your friends want to play together.
 

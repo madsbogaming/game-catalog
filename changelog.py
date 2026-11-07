@@ -23,7 +23,7 @@ class Entry:
 
     def message(self) -> str:
         """The entry as a Discord message, cut short to fit if it's very long."""
-        text = f"## {self.title}\n{self.body}\n-# Game Catalog update · turn these off with `/setup post`"
+        text = f"## {self.title}\n{self.body}\n-# Get on the Game update · turn these off with `/setup post`"
         return text if len(text) <= DISCORD_LIMIT else text[:DISCORD_LIMIT - 1] + "…"
 
 

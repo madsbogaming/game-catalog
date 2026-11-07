@@ -1,7 +1,7 @@
 # The bot as a Linux service: starts at boot, and again 30 seconds after it stops for any reason.
 # Installed by deploy/setup.sh. Logs: journalctl -u mads-bo-wacky -f
 [Unit]
-Description=Mads-bo-wacky Game Catalog bot
+Description=Mads-bo-wacky Get on the Game bot
 Wants=network-online.target
 After=network-online.target
 

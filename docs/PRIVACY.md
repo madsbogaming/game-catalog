@@ -1,8 +1,8 @@
 # Privacy policy
 
-*Last updated: 4 November 2026*
+*Last updated: 7 November 2026*
 
-This policy covers the Game Catalog bot ("the bot") and its catalog page, run by Mads ([madsbogaming](https://github.com/madsbogaming) on GitHub, [mads.ringgaard@live.dk](mailto:mads.ringgaard@live.dk)). It says what the bot keeps about you, why, who else sees it, and how to have it removed.
+This policy covers the Get on the Game bot (called Game Catalog until 7 November 2026, "the bot") and its catalog page, run by Mads ([madsbogaming](https://github.com/madsbogaming) on GitHub, [mads.ringgaard@live.dk](mailto:mads.ringgaard@live.dk)). It says what the bot keeps about you, why, who else sees it, and how to have it removed.
 
 **In short:** the bot keeps what it needs to build your server's game catalog: the games people post, who wants or played them, and, if you sign in, your Steam hours. It doesn't sell anything, show ads or read channels it hasn't been given.
 
