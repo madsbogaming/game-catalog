@@ -97,13 +97,13 @@ REPO_URL = "https://github.com/madsbogaming/game-catalog"  # added to the bot's 
 BIO_MAX = 400  # Discord's limit for an app's description
 
 # What a server the bot was just added to sees first: what it does, and a "Set up" button that opens the setup form
-WELCOME_FORM = """**Thanks for adding Game Catalog!** It turns the games you post in Discord into one catalog everyone can browse, vote on and play from.
+WELCOME_FORM = """**Thanks for adding Get on the Game!** It turns the games you post in Discord into one catalog everyone can browse, vote on and play from.
 
 Press **Set up** to pick the channel where you post games, your country and your time zone, all in one form (you need Manage Messages). Then post a Steam link and watch it land in `/catalog`.
 -# Change anything later with `/setup form`, or one thing at a time with `/setup`. Need help? Ask at <https://github.com/madsbogaming/game-catalog/discussions>"""
 # ...and in a DM to the owner when it can't post anywhere in the server (a form can't pick a server's channels from a
 # DM): the setup steps as commands (the same as the README's)
-WELCOME = """**Thanks for adding Game Catalog!** It turns the games you post in Discord into one catalog everyone can browse, vote on and play from.
+WELCOME = """**Thanks for adding Get on the Game!** It turns the games you post in Discord into one catalog everyone can browse, vote on and play from.
 
 Set it up in a minute (you need Manage Messages):
 1. `/setup watch` in the channel where you post games
@@ -1756,7 +1756,7 @@ def gotg_view(guild_id: int, day: str) -> ui.LayoutView:
     owners, games = bot.db.owners(guild_id), gotg_games(guild_id, day)
     over = day != bot.settings.now(guild_id).date().isoformat()
     items: list[ui.Item] = [ui.TextDisplay(
-        "## Get on the game #GOTG\nWho's up for a game tonight? Press **I'm in…** and tick the ones you'd play. Once "
+        "## Get on the Game #GOTG\nWho's up for a game tonight? Press **I'm in…** and tick the ones you'd play. Once "
         f"{gotg.PLAYERS_TO_PING} of you are in on the same game, it's on, and the bot pings the others who have it or "
         "want it.")]
     for group, heading in (("owned", "### Already in your libraries"), ("buy", "### Worth buying")):
@@ -2327,7 +2327,7 @@ class SetupForm(ui.Modal):
     them), and only what was changed is saved, so sending it unchanged changes nothing."""
 
     def __init__(self, guild: discord.Guild):
-        super().__init__(title="Set up Game Catalog", timeout=3600)
+        super().__init__(title="Set up Get on the Game", timeout=3600)
         s, gid = bot.settings, guild.id
         self.guild = guild
         self.watched = [c for c in s.watch_channels(gid) if guild.get_channel(c)]

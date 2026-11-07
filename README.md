@@ -1,6 +1,6 @@
-<p align="center"><img src="static/art/banner.png" alt="Game Catalog: what are we playing next?" width="720"></p>
+<p align="center"><img src="static/art/banner.png" alt="Get on the Game: what are we playing next?" width="720"></p>
 
-<h1 align="center">Game Catalog bot</h1>
+<h1 align="center">Get on the Game</h1>
 
 <p align="center"><b>Never lose another "we should play this!" link again.</b><br>
 Your friends post games in Discord. The bot turns them into one catalog everyone can browse, vote on and launch, right inside Discord.</p>
@@ -21,14 +21,14 @@ Your friends post games in Discord. The bot turns them into one catalog everyone
 
 It's free, and it runs around the clock. You need **Manage Server** on the server to add it.
 
-<p align="center"><a href="https://discord.com/oauth2/authorize?client_id=1565754087776067584&permissions=274878024768&integration_type=0&scope=bot+applications.commands"><b>Add Game Catalog to Discord</b></a></p>
+<p align="center"><a href="https://discord.com/oauth2/authorize?client_id=1565754087776067584&permissions=274878024768&integration_type=0&scope=bot+applications.commands"><b>Add Get on the Game to Discord</b></a></p>
 
 Then set it up in a minute. The bot says hello with a **Set up** button that opens one form for all of it: your games channel, the games already posted there, your country and time zone, and where #GOTG, deals and free games go. `/setup form` opens it again later. Or do it one step at a time:
 
 1. **Pick your games channel:** `/setup watch` in the channel where people post games.
 2. **Import what's already there:** `/backfill` in that channel.
 3. **Your prices and time:** `/setup country` (for example `dk` or `us`) and `/setup timezone` (start typing your city).
-4. **Optional:** `/setup post` picks where the daily get on the game post #GOTG, the weekly deals and free games go, and can turn on Bot updates: a post now and then when something big is new.
+4. **Optional:** `/setup post` picks where the daily #GOTG post (games to play together tonight), the weekly deals and free games go, and can turn on Bot updates: a post now and then when something big is new.
 
 That's it. Post a Steam link and watch it land in the catalog. `/setup show` lists everything the bot uses on your server.
 

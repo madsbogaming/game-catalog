@@ -32,7 +32,7 @@ LEGAL_PAGES = {"/privacy": "docs/PRIVACY.md", "/terms": "docs/TERMS.md"}
 LEGAL_LINKS = {"PRIVACY.md": "/privacy", "TERMS.md": "/terms", "../LICENSE": "/license"}
 LEGAL_TEMPLATE = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{title} · Game Catalog</title>
+<title>{title} · Get on the Game</title>
 <style>
 :root {{ color-scheme: light dark; --bg:#fff; --ink:#1f2328; --muted:#59636e; --line:#d1d9e0; --link:#4752c4; }}
 @media (prefers-color-scheme: dark) {{ :root {{ --bg:#141518; --ink:#e6e7ea; --muted:#9a9ca3; --line:#2e3036; --link:#949cf7; }} }}
@@ -52,7 +52,7 @@ def render_legal(path: str) -> tuple[str, str]:
         text = f.read()
     for name, url in LEGAL_LINKS.items():
         text = text.replace(f"]({name})", f"]({url})")
-    title = next((line.lstrip("# ").strip() for line in text.splitlines() if line.startswith("# ")), "Game Catalog")
+    title = next((line.lstrip("# ").strip() for line in text.splitlines() if line.startswith("# ")), "Get on the Game")
     body = markdown.markdown(text, extensions=["tables"])
     return title, LEGAL_TEMPLATE.format(title=title, body=body)
 # Only images from these sites are proxied, so /img can't be used to fetch arbitrary URLs.

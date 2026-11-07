@@ -1,8 +1,8 @@
 # Terms of service
 
-*Last updated: 4 November 2026*
+*Last updated: 7 November 2026*
 
-These terms cover using the Game Catalog bot ("the bot") and its catalog page, run by Mads ([madsbogaming](https://github.com/madsbogaming) on GitHub, [mads.ringgaard@live.dk](mailto:mads.ringgaard@live.dk)). By adding the bot to a server or using it, you agree to them. What the bot keeps about you is in the [privacy policy](PRIVACY.md).
+These terms cover using the Get on the Game bot (called Game Catalog until 7 November 2026, "the bot") and its catalog page, run by Mads ([madsbogaming](https://github.com/madsbogaming) on GitHub, [mads.ringgaard@live.dk](mailto:mads.ringgaard@live.dk)). By adding the bot to a server or using it, you agree to them. What the bot keeps about you is in the [privacy policy](PRIVACY.md).
 
 These terms are about **using** the bot. Copying, hosting or changing its code is covered by the [license](../LICENSE).
 

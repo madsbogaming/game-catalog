@@ -1,5 +1,5 @@
 @echo off
-rem Runs the game catalog bot, writing its log to bot.log.
+rem Runs the Get on the Game bot, writing its log to bot.log.
 rem If the bot stops (crash, or no internet yet right after the PC starts), it is started again after 30 seconds.
 rem Started hidden at login by "Game catalog bot.vbs" in the Windows Startup folder.
 cd /d "%~dp0"

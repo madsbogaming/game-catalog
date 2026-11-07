@@ -1,6 +1,6 @@
 # Changelog
 
-Big updates to Game Catalog, newest first. Only big updates go here (new features, changes people will notice), not every fix. Write them for the people using the bot: what changed for them, in a few short lines.
+Big updates to Get on the Game, newest first. Only big updates go here (new features, changes people will notice), not every fix. Write them for the people using the bot: what changed for them, in a few short lines.
 
 Nothing here is posted by itself. Servers that turned on **Bot updates** with `/setup post` get the newest entry only when Mads runs `tools/announce_update.py --post` (see that file).
 
