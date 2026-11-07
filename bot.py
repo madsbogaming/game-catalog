@@ -93,6 +93,9 @@ DEFAULTS = Defaults(home_guild=GUILD_ID, watch=WATCH_CHANNELS, read=READ_CHANNEL
     "free_games": FREE_GAMES_CHANNEL_ID, "deals": DEALS_CHANNEL_ID, "achievements": ACHIEVEMENTS_CHANNEL_ID,
     "played_rule": PLAYED_RULE_CHANNEL_ID, "gotg": GOTG_CHANNEL_ID})
 
+REPO_URL = "https://github.com/madsbogaming/game-catalog"  # added to the bot's bio (link_repo_in_bio)
+BIO_MAX = 400  # Discord's limit for an app's description
+
 # What a server the bot was just added to sees first: what it does, and a "Set up" button that opens the setup form
 WELCOME_FORM = """**Thanks for adding Game Catalog!** It turns the games you post in Discord into one catalog everyone can browse, vote on and play from.
 
@@ -508,6 +511,25 @@ class GameBot(commands.Bot):
         if GUILD_ID:
             self.tree.clear_commands(guild=discord.Object(GUILD_ID))
             await self.tree.sync(guild=discord.Object(GUILD_ID))
+        await self.link_repo_in_bio()
+
+    async def link_repo_in_bio(self):
+        """The bot's bio (its app's description, set in the Developer Portal) ends with the GitHub repo, so people who
+        aren't in a server with it can find the code, the docs and where to ask (S17). Only added when it's missing,
+        so the rest of the bio stays as written there."""
+        try:
+            app = await self.application_info()
+            bio = (app.description or "").strip()
+            if REPO_URL in bio:
+                return
+            linked = f"{bio}\n\n{REPO_URL}" if bio else REPO_URL
+            if len(linked) > BIO_MAX:
+                log.warning("Bot bio has no room for the GitHub link (%d of %d characters)", len(bio), BIO_MAX)
+                return
+            await app.edit(description=linked)
+            log.info("Added the GitHub link to the bot's bio")
+        except discord.HTTPException as exc:
+            log.warning("Couldn't add the GitHub link to the bot's bio: %s", exc)
 
     async def sync_global_commands(self):
         """What tree.sync() does for the global commands, but keeping the Activity's Entry Point command (the
