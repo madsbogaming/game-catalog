@@ -585,6 +585,8 @@ html:has(body.mini) { scrollbar-gutter:auto; overflow:hidden; }
 .rt-verified.some { color:#3ba55d; }
 .rt-list { display:flex; flex-direction:column; gap:4px; background:#232428; border-radius:8px; padding:6px; }
 .rt-row { display:flex; align-items:center; gap:8px; padding:3px 4px; min-width:0; }
+.rt-row[data-user] { cursor:pointer; border-radius:8px; }
+#raters.pinned .rt-row[data-user]:hover { background:rgba(255,255,255,.07); }
 .rt-av { width:24px; height:24px; border-radius:50%; object-fit:cover; flex:none; display:grid; place-items:center;
   background:#2b2d31; font-size:11px; font-weight:700; }
 .rt-who { flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
@@ -856,7 +858,13 @@ function personButton(kind, id, n) {
 function setPersonFilter(kind, id, stars) {
   personFilter = kind ? { kind, id, stars } : null;
   render();
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  scrollToResults();
+}
+// After a filter changes: up to the first game, just under the sticky bar, when you're further down than that. Not to
+// the top of the page, which on a phone is a screen or two of header above the games (B16).
+function scrollToResults() {
+  const top = $("grid").getBoundingClientRect().top + scrollY - document.querySelector(".bar").offsetHeight - 8;
+  if (scrollY > top) window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
 }
 
 function profileHtml(id, fallbackName, game) {
@@ -924,12 +932,14 @@ function profileHtml(id, fallbackName, game) {
     </div>`;
 }
 
-function showProfile(el) {
+// `who`: someone picked from a list (not `el` itself), shown next to `el`, which is what the list opened from
+function showProfile(el, who = null) {
   clearTimeout(showTimer);
-  if (popFor === el && pop.classList.contains("show")) return;
+  if (!who && popFor === el && pop.classList.contains("show")) return;
   popFor = el;
-  const gameId = el.closest(".card")?.id.slice(1) || el.closest(".now-item")?.dataset.id;
-  pop.innerHTML = profileHtml(el.dataset.user, el.dataset.name, DATA.find((x) => String(x.id) === gameId));
+  const gameId = who ? who.gameId : el.closest(".card")?.id.slice(1) || el.closest(".now-item")?.dataset.id;
+  pop.innerHTML = profileHtml(who ? who.user : el.dataset.user, who ? who.name : el.dataset.name,
+                              DATA.find((x) => String(x.id) === gameId));
   // The card's transparent border is the gap to the avatar, so it sits right against it
   const r = el.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
   let top = r.top - h;
@@ -1197,7 +1207,7 @@ function ratersHtml(e) {
     : !verified ? "None verified as played" : verified === e.ratings.length ? `All ${verified} verified as played`
     : `${verified} of ${e.ratings.length} verified as played`}</div><div class="rt-list">${[...e.ratings].sort((a, b) => b.stars - a.stars).map((r) => {
       const p = person(r.id);
-      return `<div class="rt-row">${withStatus(r.id, face(p))}<span class="rt-who"><span class="rt-name">${esc(p.name)}</span>${
+      return `<div class="rt-row" ${personAttrs(r.id, p.name)}>${withStatus(r.id, face(p))}<span class="rt-who"><span class="rt-name">${esc(p.name)}</span>${
         r.played ? playedBadge(esc(proof(r))) : ""}</span><span class="rt-stars" aria-label="${r.stars} of 5">${stars(r.stars)}</span></div>`;
     }).join("")}</div>`;
 }
@@ -1207,9 +1217,11 @@ function refundersHtml(e) {
     : `<span class="rt-av">${esc((p.name || "?")[0].toUpperCase())}</span>`;
   return `<div class="rt-head">${icon("receipt-refund").replace('class="i"', 'class="i rf"')}Refunded on Steam by</div>
     <div class="rt-list">${e.refunds.map((r) => { const p = person(r.id, r.name);
-      return `<div class="rt-row">${withStatus(r.id, face(p))}<span class="rt-who"><span class="rt-name">${esc(p.name)}</span></span></div>`; }).join("")}</div>
+      return `<div class="rt-row" ${personAttrs(r.id, p.name)}>${withStatus(r.id, face(p))}<span class="rt-who"><span class="rt-name">${esc(p.name)}</span></span></div>`; }).join("")}</div>
     ${CAN_WANT ? `<div class="rt-hint">Mark yours in the status menu</div>` : ""}`;
 }
+// A person in one of these lists: tapping them opens their profile card, like a face on a card does
+const personAttrs = (id, name) => `data-user="${esc(id)}" data-name="${esc(name)}"`;
 // ...and for a card's "+N": everyone in that group, or all the game's tags (click one to filter by it)
 function moreHtml(e, kind) {
   const face = (p) => p.avatar ? `<img class="rt-av" src="${esc(imgUrl(p.avatar))}" alt="">`
@@ -1220,7 +1232,7 @@ function moreHtml(e, kind) {
                  played: playedNotPlaying(e), refunds: e.refunds, wants: e.interested }[kind] || [];
   return `<div class="rt-head">${esc(PEOPLE[kind][1])} · ${list.length}</div>
     <div class="rt-list">${list.map((r) => { const p = person(r.id, r.name);
-      return `<div class="rt-row">${withStatus(r.id, face(p))}<span class="rt-who"><span class="rt-name">${esc(p.name)}</span></span></div>`; }).join("")}</div>
+      return `<div class="rt-row" ${personAttrs(r.id, p.name)}>${withStatus(r.id, face(p))}<span class="rt-who"><span class="rt-name">${esc(p.name)}</span></span></div>`; }).join("")}</div>
     ${kind === "played" && beforeRule(e) ? `<div class="rt-hint">${OLD_PLAYED}</div>` : ""}`;
 }
 let ratersPinned = false;  // a "+N" list opened by a click stays open while the pointer moves to it
@@ -1274,10 +1286,20 @@ document.addEventListener("click", (ev) => {
   } else if (ratersFor && !ev.composedPath().includes(raters)) hideRaters();
 }, true);
 raters.addEventListener("click", (ev) => {
+  const who = ev.target.closest(".rt-row[data-user]");
+  if (who) {  // a person: their profile card, by the "+N" the list opened from, kept open
+    ev.stopPropagation();  // (or the page's own click handling would close it straight away)
+    const anchor = ratersFor || who;
+    const picked = { user: who.dataset.user, name: who.dataset.name, gameId: anchor.dataset.id };
+    hideRaters();
+    showProfile(anchor, picked);
+    pinned = true;
+    return;
+  }
   const tag = ev.target.closest(".chip")?.dataset.tag;
   if (!tag) return;
   hideRaters();
-  picked.add(tag); buildGenres(); render(); window.scrollTo({ top: 0, behavior: "smooth" });
+  picked.add(tag); buildGenres(); render(); scrollToResults();
 });
 addEventListener("scroll", hideRaters, { passive: true });
 async function setRating(e, stars) {
@@ -1703,10 +1725,13 @@ const reviewTone = (e) => /negative/i.test(e.review_desc || "") ? "neg" : /mixed
 const BNET_APPS = { "world of warcraft": "WoW", "world of warcraft: forever": "WoWF", "world of warcraft classic": "WoWC",
                     "diablo iv": "Fen",
                     "hearthstone": "WTCG", "heroes of the storm": "Hero", "starcraft ii": "S2", "overwatch": "Pro" };
+const ON_PHONE = matchMedia("(pointer: coarse)").matches;  // phones and tablets
 function gameLink(e) {
   const app = e.kind === "steam" && /\/app\/(\d+)/.exec(e.url)?.[1];
   const bnet = e.kind === "battlenet" && BNET_APPS[e.title.toLowerCase()];
-  if ((!app && !bnet) || !CONFIG.live || (IN_DISCORD && !CONFIG.publicUrl)) return e.url;  // no public address yet: the store page
+  // The store page: no public address yet, or a phone, where the Steam and Battle.net apps don't take steam:// /
+  // battlenet:// links (Steam's phone app opens store.steampowered.com links itself) (B18)
+  if ((!app && !bnet) || !CONFIG.live || (IN_DISCORD && !CONFIG.publicUrl) || ON_PHONE) return e.url;
   const base = IN_DISCORD ? CONFIG.publicUrl : "";
   return app ? `${base}/static/open-steam.html?app=${app}`
     : `${base}/static/open-battlenet.html?app=${bnet}&name=${encodeURIComponent(e.title)}&web=${encodeURIComponent(e.url)}`;
@@ -2158,7 +2183,7 @@ document.addEventListener("click", (ev) => { if ($("genre").open && !$("genre").
 // Clicking a tag on a card ticks it too
 $("grid").addEventListener("click", (ev) => {
   const tag = ev.target.closest(".chip")?.dataset.tag;
-  if (tag) { picked.add(tag); buildGenres(); render(); window.scrollTo({ top: 0, behavior: "smooth" }); }
+  if (tag) { picked.add(tag); buildGenres(); render(); scrollToResults(); }
 });
 buildGenres();
 render();
